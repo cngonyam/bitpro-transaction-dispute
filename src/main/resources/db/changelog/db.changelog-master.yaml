@@ -1,0 +1,395 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-accounts-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: accounts
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: customer_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: available_balance
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-create-transactions-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: transactions
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: transaction_reference
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: merchant_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: transaction_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+
+  - changeSet:
+      id: 003-create-disputes-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: disputes
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: dispute_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: transaction_reference
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: disputed_amount
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reason_code
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: TEXT
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 004-insert-account-data
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: accounts
+            columns:
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: customer_name
+                  value: Jane Smith
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: available_balance
+                  valueNumeric: 12500.50
+              - column:
+                  name: status
+                  value: ACTIVE
+        - insert:
+            tableName: accounts
+            columns:
+              - column:
+                  name: account_number
+                  value: ACC-1002
+              - column:
+                  name: customer_name
+                  value: John Doe
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: available_balance
+                  valueNumeric: 7800.00
+              - column:
+                  name: status
+                  value: ACTIVE
+
+  - changeSet:
+      id: 005-insert-transaction-data
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: transactions
+            columns:
+              - column:
+                  name: transaction_reference
+                  value: TXN-10001
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: amount
+                  valueNumeric: 120.00
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: type
+                  value: DEBIT
+              - column:
+                  name: merchant_name
+                  value: Clover Mall
+              - column:
+                  name: status
+                  value: SUCCESS
+              - column:
+                  name: transaction_date
+                  valueComputed: datetime('now', '-2 days')
+              - column:
+                  name: description
+                  value: Groceries
+        - insert:
+            tableName: transactions
+            columns:
+              - column:
+                  name: transaction_reference
+                  value: TXN-10002
+              - column:
+                  name: account_number
+                  value: ACC-1002
+              - column:
+                  name: amount
+                  valueNumeric: 850.25
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: type
+                  value: CREDIT
+              - column:
+                  name: merchant_name
+                  value: Payroll
+              - column:
+                  name: status
+                  value: SUCCESS
+              - column:
+                  name: transaction_date
+                  valueComputed: datetime('now', '-1 day')
+              - column:
+                  name: description
+                  value: Salary deposit
+        - insert:
+            tableName: transactions
+            columns:
+              - column:
+                  name: transaction_reference
+                  value: TXN-10003
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: amount
+                  valueNumeric: 340.50
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: type
+                  value: DEBIT
+              - column:
+                  name: merchant_name
+                  value: Fuel Stop
+              - column:
+                  name: status
+                  value: PENDING
+              - column:
+                  name: transaction_date
+                  valueComputed: datetime('now', '-5 hours')
+              - column:
+                  name: description
+                  value: Fuel purchase
+
+  - changeSet:
+      id: 006-insert-dispute-data
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: disputes
+            columns:
+              - column:
+                  name: dispute_id
+                  value: DSP-AB12CD34
+              - column:
+                  name: transaction_reference
+                  value: TXN-10001
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: disputed_amount
+                  valueNumeric: 120.00
+              - column:
+                  name: reason_code
+                  value: UNRECOGNISED_TRANSACTION
+              - column:
+                  name: description
+                  value: Customer does not recognize this transaction
+              - column:
+                  name: status
+                  value: OPEN
+              - column:
+                  name: created_at
+                  valueComputed: datetime('now', '-1 day')
+              - column:
+                  name: updated_at
+                  valueComputed: datetime('now', '-3 hours')
+        - insert:
+            tableName: disputes
+            columns:
+              - column:
+                  name: dispute_id
+                  value: DSP-9F6A2B11
+              - column:
+                  name: transaction_reference
+                  value: TXN-10003
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: disputed_amount
+                  valueNumeric: 340.50
+              - column:
+                  name: reason_code
+                  value: DUPLICATE_CHARGE
+              - column:
+                  name: description
+                  value: Duplicate charge reported for fuel purchase
+              - column:
+                  name: status
+                  value: IN_REVIEW
+              - column:
+                  name: created_at
+                  valueComputed: datetime('now', '-6 hours')
+              - column:
+                  name: updated_at
+                  valueComputed: datetime('now', '-2 hours')
+
+  - changeSet:
+      id: 007-insert-missing-dispute-data
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: disputes
+            columns:
+              - column:
+                  name: dispute_id
+                  value: DSP-BCFA9B7C
+              - column:
+                  name: transaction_reference
+                  value: TXN-10002
+              - column:
+                  name: account_number
+                  value: ACC-1002
+              - column:
+                  name: disputed_amount
+                  valueNumeric: 850.25
+              - column:
+                  name: reason_code
+                  value: UNAUTHORIZED_TRANSACTION
+              - column:
+                  name: description
+                  value: Customer disputes salary deposit amount after account review
+              - column:
+                  name: status
+                  value: OPEN
+              - column:
+                  name: created_at
+                  valueComputed: datetime('now', '-12 hours')
+              - column:
+                  name: updated_at
+                  valueComputed: datetime('now', '-4 hours')

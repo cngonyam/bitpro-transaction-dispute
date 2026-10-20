@@ -1,0 +1,34 @@
+
+Warning: This is a simple server for use in testing or debugging Angular applications
+locally. It hasn't been reviewed for security issues.
+
+Binding this server to an open connection can result in compromising your application or
+computer. Using a different host than the one passed to the "--host" flag might result in
+websocket connection issues.
+    
+❯ Building...
+✔ Building...
+Initial chunk files | Names         | Raw size
+main.js             | main          | 74.46 kB | 
+styles.css          | styles        | 95 bytes | 
+
+                    | Initial total | 74.56 kB
+
+Application bundle generation complete. [0.996 seconds] - 2026-10-18T22:52:24.612Z
+
+Watch mode enabled. Watching for file changes...
+NOTE: Raw file sizes do not reflect development server per-request transformations.
+[2m00:52:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4200[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.104:[1m4200[22m/[39m  [2mWi-Fi[22m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.21.0.1:[1m4200[22m/[39m     [2mvEthernet (Default …[22m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://172.22.48.1:[1m4200[22m/[39m    [2mvEthernet (WSL (Hyp…[22m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+❯ Changes detected. Rebuilding...
+✔ Changes detected. Rebuilding...
+Initial chunk files | Names | Raw size
+main.js             | main  | 74.46 kB | 
+
+Application bundle generation complete. [0.152 seconds] - 2026-10-18T22:58:16.069Z
+
+Page reload sent to client(s).
