@@ -7,34 +7,24 @@ import za.co.transactiondispute.entity.Transaction;
 @Component
 public class TransactionMapper {
 
-    public TransactionDto toDto(Transaction transaction) {
-        if (transaction == null) {
-            return null;
-        }
-
+    public TransactionDto toDto(Transaction t) {
         return TransactionDto.builder()
-                .id(transaction.getId())
-                .transactionReference(transaction.getTransactionReference())
-                .accountNumber(transaction.getAccountNumber())
-                .amount(transaction.getAmount())
-                .currency(transaction.getCurrency())
-                .type(transaction.getType())
-                .merchantName(transaction.getMerchantName())
-                .status(transaction.getStatus())
-                .transactionDate(transaction.getTransactionDate())
-                .description(transaction.getDescription())
+                .transactionReference(t.getTransactionReference())
+                .accountNumber(t.getAccountNumber())
+                .amount(t.getAmount())
+                .currency(t.getCurrency())
+                .type(t.getType())
+                .merchantName(t.getMerchantName())
+                .status(t.getStatus())
+                .transactionDate(t.getTransactionDate())
+                .description(t.getDescription())
                 .build();
     }
 
-    public Transaction toEntity(TransactionDto dto) {
-        if (dto == null) {
-            return null;
-        }
-
+    public Transaction toEntity(TransactionDto dto, String accountNumber) {
         return Transaction.builder()
-                .id(dto.getId())
                 .transactionReference(dto.getTransactionReference())
-                .accountNumber(dto.getAccountNumber())
+                .accountNumber(accountNumber)
                 .amount(dto.getAmount())
                 .currency(dto.getCurrency())
                 .type(dto.getType())

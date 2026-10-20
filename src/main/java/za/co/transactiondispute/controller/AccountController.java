@@ -1,15 +1,18 @@
 package za.co.transactiondispute.controller;
 
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import za.co.transactiondispute.dto.AccountDto;
-import za.co.transactiondispute.entity.Account;
+import za.co.transactiondispute.security.Actor;
 import za.co.transactiondispute.service.AccountService;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/accounts")
 public class AccountController {
 
     private final AccountService accountService;
@@ -18,26 +21,18 @@ public class AccountController {
         this.accountService = accountService;
     }
 
-    @GetMapping("/accounts")
-    public List<Account> getAccounts() {
-        return accountService.getAllAccounts();
+    @GetMapping
+    public List<AccountDto> getAccounts(Authentication authentication) {
+        return accountService.getAccounts(Actor.from(authentication));
     }
 
-    @GetMapping("/accounts/{id}")
-    public ResponseEntity<Account> getAccount(@PathVariable Long id) {
-        return ResponseEntity.ok(accountService.getAccountById(id).orElseThrow());
+    @GetMapping("/{accountNumber}")
+    public AccountDto getAccount(@PathVariable String accountNumber, Authentication authentication) {
+        return accountService.getAccount(accountNumber, Actor.from(authentication));
     }
 
-    @PostMapping("/accounts")
-    public ResponseEntity<Account> createAccount(@RequestBody AccountDto accountDto) {
-        Account account = Account.builder()
-                .accountNumber(accountDto.getAccountNumber())
-                .customerName(accountDto.getCustomerName())
-                .currency(accountDto.getCurrency())
-                .availableBalance(accountDto.getAvailableBalance())
-                .status(accountDto.getStatus())
-                .build();
-
-        return ResponseEntity.ok(accountService.createAccount(account));
+    @PostMapping
+    public ResponseEntity<AccountDto> createAccount(@Valid @RequestBody AccountDto request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(accountService.createAccount(request));
     }
 }

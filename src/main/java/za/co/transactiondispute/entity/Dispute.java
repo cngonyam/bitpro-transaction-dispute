@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import za.co.transactiondispute.enums.DisputeReason;
 import za.co.transactiondispute.enums.DisputeStatus;
 
 import java.math.BigDecimal;
@@ -32,10 +33,17 @@ public class Dispute {
     private String accountNumber;
 
     @Column(nullable = false)
+    private String customerUsername;
+
+    @Column(nullable = false)
     private BigDecimal disputedAmount;
 
     @Column(nullable = false)
-    private String reasonCode;
+    private String currency;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DisputeReason reasonCode;
 
     @Column(length = 1000)
     private String description;
@@ -44,9 +52,14 @@ public class Dispute {
     @Column(nullable = false)
     private DisputeStatus status;
 
+    @Column(length = 1000)
+    private String resolutionNote;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    private LocalDateTime resolvedAt;
 }

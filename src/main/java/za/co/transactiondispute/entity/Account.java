@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import za.co.transactiondispute.enums.AccountStatus;
 
 import java.math.BigDecimal;
 
@@ -24,7 +25,16 @@ public class Account {
     private String accountNumber;
 
     @Column(nullable = false)
+    private String ownerUsername;
+
+    @Column(nullable = false)
     private String customerName;
+
+    @Column(nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private String mobileNumber;
 
     @Column(nullable = false)
     private String currency;
@@ -32,6 +42,7 @@ public class Account {
     @Column(nullable = false)
     private BigDecimal availableBalance;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private AccountStatus status;
 }

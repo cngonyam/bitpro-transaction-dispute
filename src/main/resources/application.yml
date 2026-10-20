@@ -1,27 +1,39 @@
 spring:
   application:
     name: transaction-dispute-api
+  profiles:
+    default: dev
   datasource:
     url: jdbc:h2:mem:transactiondispute;MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
-    password: password
+    password: ${DB_PASSWORD:password}
     driver-class-name: org.h2.Driver
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
   security:
-    user:
-      name: admin
-      password: admin123
+    oauth2:
+      resourceserver:
+        jwt:
+          # Bank identity provider; set one of these outside the dev profile.
+          issuer-uri: ${JWT_ISSUER_URI:}
+          jwk-set-uri: ${JWT_JWK_SET_URI:}
+
+security:
+  jwt:
+    roles-claim: roles
+
+app:
+  seed-demo-data: false
+  dev-token-endpoint: false
+
+core-banking:
+  # mock = generated feed; rest = call a real core banking API at base-url
+  mode: mock
+  base-url: ${CORE_BANKING_URL:http://localhost:9090}
+  api-key: ${CORE_BANKING_API_KEY:}
 
 server:
   port: 8080

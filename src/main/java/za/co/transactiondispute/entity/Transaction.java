@@ -5,13 +5,14 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import za.co.transactiondispute.enums.TransactionStatus;
 import za.co.transactiondispute.enums.TransactionType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "transactions")
+@Table(name = "transactions", indexes = @Index(name = "idx_txn_account_date", columnList = "accountNumber,transactionDate"))
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -34,15 +35,16 @@ public class Transaction {
     @Column(nullable = false)
     private String currency;
 
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private TransactionType type;
 
     @Column(nullable = false)
     private String merchantName;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private TransactionStatus status;
 
     @Column(nullable = false)
     private LocalDateTime transactionDate;

@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import za.co.transactiondispute.enums.TransactionStatus;
 import za.co.transactiondispute.enums.TransactionType;
 
 import java.math.BigDecimal;
@@ -14,14 +15,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransactionDto {
-    private Long id;
     private String transactionReference;
     private String accountNumber;
     private BigDecimal amount;
     private String currency;
     private TransactionType type;
     private String merchantName;
-    private String status;
+    private TransactionStatus status;
     private LocalDateTime transactionDate;
     private String description;
 }

@@ -1,0 +1,17 @@
+# Local development: HS256 shared secret, token minting endpoint and demo accounts.
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri:
+          jwk-set-uri:
+
+security:
+  jwt:
+    issuer: http://localhost:8080/dev-idp
+    secret: ${DEV_JWT_SECRET:dev-only-secret-change-me-0123456789abcdef}
+
+app:
+  seed-demo-data: true
+  dev-token-endpoint: true

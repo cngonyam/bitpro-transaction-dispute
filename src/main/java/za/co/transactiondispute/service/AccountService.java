@@ -1,12 +1,18 @@
 package za.co.transactiondispute.service;
 
+import za.co.transactiondispute.dto.AccountDto;
 import za.co.transactiondispute.entity.Account;
+import za.co.transactiondispute.security.Actor;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface AccountService {
-    List<Account> getAllAccounts();
-    Optional<Account> getAccountById(Long id);
-    Account createAccount(Account account);
+    List<AccountDto> getAccounts(Actor actor);
+
+    AccountDto getAccount(String accountNumber, Actor actor);
+
+    /** Returns the account if the actor owns it (or is an agent); otherwise behaves as not found. */
+    Account getAuthorisedAccount(String accountNumber, Actor actor);
+
+    AccountDto createAccount(AccountDto request);
 }
