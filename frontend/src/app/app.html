@@ -1,289 +1,290 @@
 ﻿<div class="app-shell">
   <header class="topbar">
-    <div class="brand-block">
-      <div class="brand-mark">B</div>
-      <div>
-        <p class="eyebrow">Bitpro Holdings</p>
-        <h1>Created by Ndumiso Ngonyama</h1>
+      <div class="brand-block">
+        <div class="brand-mark">B</div>
+        <div>
+          <p class="eyebrow">Bitpro Holdings</p>
+          <h1>Dispute Operations Portal</h1>
+        </div>
       </div>
-    </div>
-    <div class="topbar-meta">
-      <div class="status-pill">API connected</div>
-      <div class="mini-metric">{{ disputes.length }} active cases</div>
-    </div>
-  </header>
+      <div class="topbar-meta">
+        <div class="status-pill">System online</div>
+        <div class="mini-metric">{{ disputes.length }} active cases</div>
+        <button type="button" class="logout-button" (click)="logout()">Logout</button>
+      </div>
+    </header>
 
-  <nav class="tabs" aria-label="Main navigation">
-    <button type="button" [class.active]="activeTab === 'transactions'" (click)="setActiveTab('transactions')">View transactions</button>
-    <button type="button" [class.active]="activeTab === 'new-dispute'" (click)="setActiveTab('new-dispute')">Submit dispute</button>
-    <button type="button" [class.active]="activeTab === 'track-dispute'" (click)="setActiveTab('track-dispute')">Track dispute status</button>
-    <button type="button" [class.active]="activeTab === 'dispute-history'" (click)="setActiveTab('dispute-history')">View dispute history</button>
-    <button type="button" [class.active]="activeTab === 'profile'" (click)="setActiveTab('profile')">Manage profile</button>
-  </nav>
+    <nav class="tabs" aria-label="Main navigation">
+      <button type="button" [class.active]="activeTab === 'transactions'" (click)="setActiveTab('transactions')">View transactions</button>
+      <button type="button" [class.active]="activeTab === 'new-dispute'" (click)="setActiveTab('new-dispute')">Submit dispute</button>
+      <button type="button" [class.active]="activeTab === 'track-dispute'" (click)="setActiveTab('track-dispute')">Track dispute status</button>
+      <button type="button" [class.active]="activeTab === 'dispute-history'" (click)="setActiveTab('dispute-history')">View dispute history</button>
+      <button type="button" [class.active]="activeTab === 'profile'" (click)="setActiveTab('profile')">Manage profile</button>
+    </nav>
 
-  @if (successMessage) {
-    <div class="notice success">{{ successMessage }}</div>
-  }
+    @if (successMessage) {
+      <div class="notice success">{{ successMessage }}</div>
+    }
 
-  @if (errorMessage) {
-    <div class="notice error">{{ errorMessage }}</div>
-  }
+    @if (errorMessage) {
+      <div class="notice error">{{ errorMessage }}</div>
+    }
 
-  <main class="content-grid">
-    @if (activeTab === 'transactions') {
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Transactions</h2>
-          <span>{{ transactions.length }} records</span>
-        </div>
+    <main class="content-grid">
+      @if (activeTab === 'transactions') {
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Transactions</h2>
+            <span>{{ transactions.length }} records</span>
+          </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Reference</th>
-                <th>Account</th>
-                <th>Merchant</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (transaction of transactions; track transaction.id) {
+          <div class="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td>{{ transaction.transactionReference }}</td>
-                  <td>{{ transaction.accountNumber }}</td>
-                  <td>{{ transaction.merchantName }}</td>
-                  <td>{{ formatAmount(transaction.amount) }}</td>
-                  <td><span class="badge status-badge">{{ transaction.status }}</span></td>
-                  <td><button type="button" class="link-button" (click)="selectTransaction(transaction)">Dispute</button></td>
+                  <th>Reference</th>
+                  <th>Account</th>
+                  <th>Merchant</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-    }
+              </thead>
+              <tbody>
+                @for (transaction of transactions; track transaction.id) {
+                  <tr>
+                    <td>{{ transaction.transactionReference }}</td>
+                    <td>{{ transaction.accountNumber }}</td>
+                    <td>{{ transaction.merchantName }}</td>
+                    <td>{{ formatAmount(transaction.amount) }}</td>
+                    <td><span class="badge status-badge">{{ transaction.status }}</span></td>
+                    <td><button type="button" class="link-button" (click)="selectTransaction(transaction)">Dispute</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
 
-    @if (activeTab === 'new-dispute') {
-      <section class="panel form-panel">
-        <div class="panel-header">
-          <h2>Submit dispute</h2>
-          @if (selectedTransaction) {
-            <span>Selected: {{ selectedTransaction.transactionReference }}</span>
-          }
-        </div>
-
-        <form class="dispute-form" (ngSubmit)="submitDispute()">
-          <div class="field-grid">
-            <label>
-              Transaction reference
-              <input type="text" [(ngModel)]="form.transactionReference" name="transactionReference" readonly />
-            </label>
-
-            <label>
-              Account number
-              <input type="text" [(ngModel)]="form.accountNumber" name="accountNumber" required />
-            </label>
-
-            <label>
-              Disputed amount
-              <input type="number" step="0.01" [(ngModel)]="form.disputedAmount" name="disputedAmount" required />
-            </label>
-
-            <label>
-              Reason code
-              <select [(ngModel)]="form.reasonCode" name="reasonCode" required>
-                <option value="">Select reason</option>
-                <option value="MERCHANT_ERROR">Merchant error</option>
-                <option value="DUPLICATE">Duplicate transaction</option>
-                <option value="FRAUD">Fraudulent transaction</option>
-                <option value="NOT_RECEIVED">Not received</option>
-              </select>
-            </label>
+      @if (activeTab === 'new-dispute') {
+        <section class="panel form-panel">
+          <div class="panel-header">
+            <h2>Submit dispute</h2>
+            @if (selectedTransaction) {
+              <span>Selected: {{ selectedTransaction.transactionReference }}</span>
+            }
           </div>
 
-          <label>
-            Description
-            <textarea [(ngModel)]="form.description" name="description" rows="4" placeholder="Describe the issue"></textarea>
-          </label>
+          <form class="dispute-form" (ngSubmit)="submitDispute()">
+            <div class="field-grid">
+              <label>
+                Transaction reference
+                <input type="text" [(ngModel)]="form.transactionReference" name="transactionReference" readonly />
+              </label>
 
-          <button type="submit" class="primary-button" [disabled]="isSubmitting">
-            {{ isSubmitting ? 'Submitting...' : 'Submit dispute' }}
-          </button>
-        </form>
-      </section>
-    }
+              <label>
+                Account number
+                <input type="text" [(ngModel)]="form.accountNumber" name="accountNumber" required />
+              </label>
 
-    @if (activeTab === 'track-dispute') {
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Track dispute status</h2>
-          <span>{{ disputes.length }} cases</span>
-        </div>
+              <label>
+                Disputed amount
+                <input type="number" step="0.01" [(ngModel)]="form.disputedAmount" name="disputedAmount" required />
+              </label>
 
-        <div class="status-overview">
-          <div class="metric-box">
-            <span>Open</span>
-            <strong>{{ openDisputeCount }}</strong>
+              <label>
+                Reason code
+                <select [(ngModel)]="form.reasonCode" name="reasonCode" required>
+                  <option value="">Select reason</option>
+                  <option value="MERCHANT_ERROR">Merchant error</option>
+                  <option value="DUPLICATE">Duplicate transaction</option>
+                  <option value="FRAUD">Fraudulent transaction</option>
+                  <option value="NOT_RECEIVED">Not received</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Description
+              <textarea [(ngModel)]="form.description" name="description" rows="4" placeholder="Describe the issue"></textarea>
+            </label>
+
+            <button type="submit" class="primary-button" [disabled]="isSubmitting">
+              {{ isSubmitting ? 'Submitting...' : 'Submit dispute' }}
+            </button>
+          </form>
+        </section>
+      }
+
+      @if (activeTab === 'track-dispute') {
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Track dispute status</h2>
+            <span>{{ disputes.length }} cases</span>
           </div>
-          <div class="metric-box">
-            <span>In review</span>
-            <strong>{{ inReviewDisputeCount }}</strong>
-          </div>
-          <div class="metric-box">
-            <span>Resolved</span>
-            <strong>{{ resolvedDisputeCount }}</strong>
-          </div>
-        </div>
 
-        <div class="two-column-layout">
-          <div class="sub-panel">
-            <h3>Dispute list</h3>
-            <div class="status-list">
-              @for (dispute of disputes; track dispute.id) {
-                <button type="button" class="status-row" [class.active]="selectedDispute?.id === dispute.id" (click)="selectDisputeToTrack(dispute)">
-                  <div>
-                    <strong>{{ dispute.disputeId }}</strong>
-                    <small>{{ dispute.transactionReference }}</small>
-                  </div>
-                  <span class="badge">{{ dispute.status }}</span>
-                </button>
-              }
+          <div class="status-overview">
+            <div class="metric-box">
+              <span>Open</span>
+              <strong>{{ openDisputeCount }}</strong>
+            </div>
+            <div class="metric-box">
+              <span>In review</span>
+              <strong>{{ inReviewDisputeCount }}</strong>
+            </div>
+            <div class="metric-box">
+              <span>Resolved</span>
+              <strong>{{ resolvedDisputeCount }}</strong>
             </div>
           </div>
 
-          <div class="sub-panel">
-            @if (selectedDispute) {
-              <div class="status-detail">
-                <div class="status-header-row">
-                  <div>
-                    <p class="muted-label">Case reference</p>
-                    <h3>{{ selectedDispute.disputeId }}</h3>
-                  </div>
-                  <span class="badge">{{ selectedDispute.status }}</span>
-                </div>
-
-                <div class="progress-meta">
-                  <span>Progress</span>
-                  <strong>{{ getDisputeProgress(selectedDispute.status) }}%</strong>
-                </div>
-                <div class="progress-bar">
-                  <span [style.width.%]="getDisputeProgress(selectedDispute.status)"></span>
-                </div>
-
-                <div class="status-grid-detail">
-                  <div><span>Account</span><strong>{{ selectedDispute.accountNumber }}</strong></div>
-                  <div><span>Amount</span><strong>{{ formatAmount(selectedDispute.disputedAmount) }}</strong></div>
-                  <div><span>Reason</span><strong>{{ selectedDispute.reasonCode }}</strong></div>
-                  <div><span>Created</span><strong>{{ formatDate(selectedDispute.createdAt) }}</strong></div>
-                </div>
-
-                <div class="timeline">
-                  @for (step of getDisputeTimeline(selectedDispute.status); track step; let i = $index) {
-                    <div class="timeline-item" [class.done]="i <= getDisputeProgress(selectedDispute.status) / 35">
-                      <span class="timeline-dot"></span>
-                      <div>
-                        <strong>{{ step }}</strong>
-                        <small>{{ i === 0 ? 'Received' : i === 1 ? 'Stage underway' : 'Final stage' }}</small>
-                      </div>
+          <div class="two-column-layout">
+            <div class="sub-panel">
+              <h3>Dispute list</h3>
+              <div class="status-list">
+                @for (dispute of disputes; track dispute.id) {
+                  <button type="button" class="status-row" [class.active]="selectedDispute?.id === dispute.id" (click)="selectDisputeToTrack(dispute)">
+                    <div>
+                      <strong>{{ dispute.disputeId }}</strong>
+                      <small>{{ dispute.transactionReference }}</small>
                     </div>
-                  }
-                </div>
+                    <span class="badge">{{ dispute.status }}</span>
+                  </button>
+                }
               </div>
-            }
-          </div>
-        </div>
-      </section>
-    }
+            </div>
 
-    @if (activeTab === 'dispute-history') {
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Dispute history</h2>
-          <div class="filter-group">
-            <button type="button" [class.active]="historyFilter === 'ALL'" (click)="historyFilter = 'ALL'">All</button>
-            <button type="button" [class.active]="historyFilter === 'OPEN'" (click)="historyFilter = 'OPEN'">Open</button>
-            <button type="button" [class.active]="historyFilter === 'IN_REVIEW'" (click)="historyFilter = 'IN_REVIEW'">In review</button>
-            <button type="button" [class.active]="historyFilter === 'RESOLVED'" (click)="historyFilter = 'RESOLVED'">Resolved</button>
-          </div>
-        </div>
+            <div class="sub-panel">
+              @if (selectedDispute) {
+                <div class="status-detail">
+                  <div class="status-header-row">
+                    <div>
+                      <p class="muted-label">Case reference</p>
+                      <h3>{{ selectedDispute.disputeId }}</h3>
+                    </div>
+                    <span class="badge">{{ selectedDispute.status }}</span>
+                  </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Dispute ID</th>
-                <th>Transaction</th>
-                <th>Account</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Updated</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (dispute of filteredDisputes; track dispute.id) {
-                <tr>
-                  <td>{{ dispute.disputeId }}</td>
-                  <td>{{ dispute.transactionReference }}</td>
-                  <td>{{ dispute.accountNumber }}</td>
-                  <td>{{ formatAmount(dispute.disputedAmount) }}</td>
-                  <td><span class="badge">{{ dispute.status }}</span></td>
-                  <td>{{ formatDate(dispute.updatedAt ?? dispute.createdAt) }}</td>
-                  <td><button type="button" class="link-button" (click)="selectDisputeToTrack(dispute)">Track</button></td>
-                </tr>
+                  <div class="progress-meta">
+                    <span>Progress</span>
+                    <strong>{{ getDisputeProgress(selectedDispute.status) }}%</strong>
+                  </div>
+                  <div class="progress-bar">
+                    <span [style.width.%]="getDisputeProgress(selectedDispute.status)"></span>
+                  </div>
+
+                  <div class="status-grid-detail">
+                    <div><span>Account</span><strong>{{ selectedDispute.accountNumber }}</strong></div>
+                    <div><span>Amount</span><strong>{{ formatAmount(selectedDispute.disputedAmount) }}</strong></div>
+                    <div><span>Reason</span><strong>{{ selectedDispute.reasonCode }}</strong></div>
+                    <div><span>Created</span><strong>{{ formatDate(selectedDispute.createdAt) }}</strong></div>
+                  </div>
+
+                  <div class="timeline">
+                    @for (step of getDisputeTimeline(selectedDispute.status); track step; let i = $index) {
+                      <div class="timeline-item" [class.done]="i <= getDisputeProgress(selectedDispute.status) / 35">
+                        <span class="timeline-dot"></span>
+                        <div>
+                          <strong>{{ step }}</strong>
+                          <small>{{ i === 0 ? 'Received' : i === 1 ? 'Stage underway' : 'Final stage' }}</small>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                </div>
               }
-            </tbody>
-          </table>
-        </div>
-      </section>
-    }
+            </div>
+          </div>
+        </section>
+      }
 
-    @if (activeTab === 'profile') {
-      <section class="panel">
-        <div class="panel-header">
-          <h2>Manage profile</h2>
-          <span>Operations profile</span>
-        </div>
-
-        <form class="profile-form" (ngSubmit)="updateProfile()">
-          <div class="field-grid">
-            <label>
-              Full name
-              <input type="text" [(ngModel)]="profile.fullName" name="fullName" />
-            </label>
-
-            <label>
-              Role
-              <input type="text" [(ngModel)]="profile.role" name="role" />
-            </label>
-
-            <label>
-              Email
-              <input type="email" [(ngModel)]="profile.email" name="email" />
-            </label>
-
-            <label>
-              Phone
-              <input type="tel" [(ngModel)]="profile.phone" name="phone" />
-            </label>
-
-            <label>
-              Department
-              <input type="text" [(ngModel)]="profile.department" name="department" />
-            </label>
-
-            <label>
-              Region
-              <input type="text" [(ngModel)]="profile.region" name="region" />
-            </label>
+      @if (activeTab === 'dispute-history') {
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Dispute history</h2>
+            <div class="filter-group">
+              <button type="button" [class.active]="historyFilter === 'ALL'" (click)="historyFilter = 'ALL'">All</button>
+              <button type="button" [class.active]="historyFilter === 'OPEN'" (click)="historyFilter = 'OPEN'">Open</button>
+              <button type="button" [class.active]="historyFilter === 'IN_REVIEW'" (click)="historyFilter = 'IN_REVIEW'">In review</button>
+              <button type="button" [class.active]="historyFilter === 'RESOLVED'" (click)="historyFilter = 'RESOLVED'">Resolved</button>
+            </div>
           </div>
 
-          <button type="submit" class="primary-button">Save profile</button>
-        </form>
-      </section>
-    }
-  </main>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dispute ID</th>
+                  <th>Transaction</th>
+                  <th>Account</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (dispute of filteredDisputes; track dispute.id) {
+                  <tr>
+                    <td>{{ dispute.disputeId }}</td>
+                    <td>{{ dispute.transactionReference }}</td>
+                    <td>{{ dispute.accountNumber }}</td>
+                    <td>{{ formatAmount(dispute.disputedAmount) }}</td>
+                    <td><span class="badge">{{ dispute.status }}</span></td>
+                    <td>{{ formatDate(dispute.updatedAt ?? dispute.createdAt) }}</td>
+                    <td><button type="button" class="link-button" (click)="selectDisputeToTrack(dispute)">Track</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
+      @if (activeTab === 'profile') {
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Manage profile</h2>
+            <span>Operations profile</span>
+          </div>
+
+          <form class="profile-form" (ngSubmit)="updateProfile()">
+            <div class="field-grid">
+              <label>
+                Full name
+                <input type="text" [(ngModel)]="profile.fullName" name="fullName" />
+              </label>
+
+              <label>
+                Role
+                <input type="text" [(ngModel)]="profile.role" name="role" />
+              </label>
+
+              <label>
+                Email
+                <input type="email" [(ngModel)]="profile.email" name="email" />
+              </label>
+
+              <label>
+                Phone
+                <input type="tel" [(ngModel)]="profile.phone" name="phone" />
+              </label>
+
+              <label>
+                Department
+                <input type="text" [(ngModel)]="profile.department" name="department" />
+              </label>
+
+              <label>
+                Region
+                <input type="text" [(ngModel)]="profile.region" name="region" />
+              </label>
+            </div>
+
+            <button type="submit" class="primary-button">Save profile</button>
+          </form>
+        </section>
+      }
+    </main>
 </div>

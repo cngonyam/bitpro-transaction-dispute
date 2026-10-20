@@ -20,8 +20,15 @@ spring:
     drop-first: true
   security:
     user:
-      name: admin
-      password: admin123
+      name: dev-user
+      password: dev-pass123
+      roles: ADMIN
+
+app:
+  dev:
+    username: dev-user
+    password: dev-pass123
+    account-number: ACC-1001
 
 server:
   port: 8082

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { finalize, forkJoin } from 'rxjs';
 import { Dispute, DisputeCreateRequest, Transaction, TransactionDisputeService } from './transaction-dispute.service';
 
 export type DashboardTab = 'transactions' | 'new-dispute' | 'track-dispute' | 'dispute-history' | 'profile';
@@ -12,6 +13,11 @@ interface UserProfile {
   phone: string;
   department: string;
   region: string;
+}
+
+interface LoginForm {
+  username: string;
+  password: string;
 }
 
 @Component({
@@ -29,6 +35,8 @@ export class App implements OnInit {
   selectedDispute: Dispute | null = null;
   historyFilter: 'ALL' | 'OPEN' | 'IN_REVIEW' | 'RESOLVED' = 'ALL';
   isSubmitting = false;
+  isLoggingIn = false;
+  isLoggedIn = false;
   successMessage = '';
   errorMessage = '';
 
@@ -39,6 +47,11 @@ export class App implements OnInit {
     phone: '+27 11 555 0123',
     department: 'Customer Operations',
     region: 'Johannesburg, South Africa',
+  };
+
+  loginForm: LoginForm = {
+    username: 'dev-user',
+    password: 'dev-pass123',
   };
 
   form: DisputeCreateRequest = {
@@ -52,8 +65,79 @@ export class App implements OnInit {
   constructor(private api: TransactionDisputeService) {}
 
   ngOnInit(): void {
-    this.loadTransactions();
-    this.loadDisputes();
+    this.autoLogin();
+  }
+
+  private autoLogin(): void {
+    this.loginForm.username = 'dev-user';
+    this.loginForm.password = 'dev-pass123';
+    this.login();
+  }
+
+  login(): void {
+    const username = this.loginForm.username.trim();
+    const password = this.loginForm.password;
+
+    if (this.isLoggingIn) {
+      return;
+    }
+
+    if (!username || !password) {
+      this.errorMessage = 'Please enter both username and password.';
+      return;
+    }
+
+    this.isLoggingIn = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    this.api.login(username, password)
+      .pipe(finalize(() => {
+        this.isLoggingIn = false;
+      }))
+      .subscribe({
+        next: (response) => {
+          this.api.setToken(response.token);
+          this.isLoggedIn = true;
+          this.successMessage = `Welcome back, ${response.username}.`;
+
+          forkJoin({
+            transactions: this.api.getTransactions(),
+            disputes: this.api.getDisputes(),
+          })
+            .pipe(finalize(() => {
+              this.isLoggingIn = false;
+            }))
+            .subscribe({
+              next: ({ transactions, disputes }) => {
+                this.transactions = transactions;
+                this.disputes = disputes;
+                if (!this.selectedDispute && disputes.length > 0) {
+                  this.selectedDispute = disputes[0];
+                }
+              },
+              error: () => {
+                this.errorMessage = 'Unable to load the portal data right now.';
+              },
+            });
+        },
+        error: () => {
+          this.isLoggedIn = false;
+          this.api.clearToken();
+          this.errorMessage = 'Invalid username or password. Please try the dev credentials.';
+        },
+      });
+  }
+
+  logout(): void {
+    this.api.clearToken();
+    this.isLoggedIn = false;
+    this.transactions = [];
+    this.disputes = [];
+    this.selectedDispute = null;
+    this.selectedTransaction = null;
+    this.successMessage = 'You have been logged out.';
+    this.errorMessage = '';
   }
 
   get filteredDisputes(): Dispute[] {

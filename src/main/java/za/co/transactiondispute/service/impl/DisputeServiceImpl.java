@@ -1,6 +1,7 @@
 package za.co.transactiondispute.service.impl;
 
 import org.springframework.stereotype.Service;
+import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.entity.Transaction;
@@ -26,36 +27,51 @@ public class DisputeServiceImpl implements DisputeService {
     private final DisputeValidator disputeValidator;
     private final EmailClient emailClient;
     private final SmsClient smsClient;
+    private final CustomerAccountContext customerAccountContext;
 
     public DisputeServiceImpl(DisputeRepository disputeRepository,
                               TransactionRepository transactionRepository,
                               DisputeValidator disputeValidator,
                               EmailClient emailClient,
-                              SmsClient smsClient) {
+                              SmsClient smsClient,
+                              CustomerAccountContext customerAccountContext) {
         this.disputeRepository = disputeRepository;
         this.transactionRepository = transactionRepository;
         this.disputeValidator = disputeValidator;
         this.emailClient = emailClient;
         this.smsClient = smsClient;
+        this.customerAccountContext = customerAccountContext;
     }
 
     @Override
     public List<Dispute> getAllDisputes() {
-        return disputeRepository.findAll();
+        return disputeRepository.findByAccountNumber(customerAccountContext.getCurrentAccountNumber());
     }
 
     @Override
     public Optional<Dispute> getDisputeById(Long id) {
-        return Optional.ofNullable(disputeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Dispute not found with id: " + id)));
+        return disputeRepository.findById(id)
+                .filter(dispute -> dispute.getAccountNumber().equalsIgnoreCase(customerAccountContext.getCurrentAccountNumber()))
+                .or(() -> {
+                    throw new ResourceNotFoundException("Dispute not found with id: " + id);
+                });
     }
 
     @Override
     public Dispute createDispute(DisputeCreateRequest request) {
         disputeValidator.validateCreateRequest(request);
 
+        String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
+        if (!request.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
+            throw new IllegalArgumentException("Customers can only submit disputes for their own account.");
+        }
+
         Transaction transaction = transactionRepository.findByTransactionReference(request.getTransactionReference())
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found with reference: " + request.getTransactionReference()));
+
+        if (!transaction.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
+            throw new IllegalArgumentException("Customers can only dispute transactions on their own account.");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         Dispute dispute = Dispute.builder()
