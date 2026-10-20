@@ -1,72 +1,66 @@
 # Bitpro Holdings - Transaction Dispute Portal
 
-A full-stack transaction dispute management application built for Bitpro Holdings. The project combines a Java Spring Boot API with an Angular frontend to let users review transactions, submit disputes, and track dispute status in a clean, business-style dashboard.
+A full-stack dispute management application for Bitpro Holdings. The project combines a Java Spring Boot API with an Angular frontend to let users review transactions, raise disputes, and track the lifecycle of case resolution in a finance operations dashboard.
 
-Created by Ndumiso Ngonyama.
+## Overview
 
-## Project purpose
+This application models a lightweight banking operations workflow:
 
-This application was designed to model a real-world banking and payment operations workflow:
-
-- View recent account transactions
+- View recent transactions and account activity
 - Select a transaction and raise a dispute
-- Capture the disputed amount, reason, and description
-- Track submitted disputes through their lifecycle
-- Store transaction and dispute data in SQLite for simple local persistence
-- Expose the backend through REST endpoints and a web UI
+- Capture the disputed amount, reason, and supporting description
+- Review dispute records and status updates
+- Persist operational data in SQLite for local development
+- Expose business functionality through a REST API and browser-based UI
 
-The solution is intended to simulate a lightweight internal operations portal for financial dispute handling.
+The portal is designed for demo and local operational use rather than production-scale banking processing.
 
-## Architecture
+## Tech stack
 
 ### Backend
 - Java 21
 - Spring Boot 3.3.4
 - Spring Web
 - Spring Data JPA
-- Hibernate
-- SQLite database
 - Spring Security
+- Hibernate with SQLite dialects
+- Liquibase for schema and seed migration
 - Springdoc OpenAPI / Swagger
-- Actuator for health checks
+- Spring Boot Actuator
 
 ### Frontend
 - Angular 22
 - TypeScript
-- Standalone components
-- API integration with CORS enabled for local development
-
-### Data model
-The app stores:
-- Accounts
-- Transactions
-- Disputes
-
-Sample seed data is inserted automatically when the database is empty.
+- Standalone component structure
+- Local CORS-enabled API integration
 
 ## Project structure
 
 ```text
 bitpro-transaction-dispute/
 ├─ src/
-│  └─ main/
-│     ├─ java/
-│     │  └─ za/co/transactiondispute/
-│     │     ├─ config/
-│     │     ├─ controller/
-│     │     ├─ dto/
-│     │     ├─ entity/
-│     │     ├─ enums/
-│     │     ├─ mapper/
-│     │     ├─ repository/
-│     │     ├─ service/
-│     │     └─ TransactionDisputeApplication.java
-│     └─ resources/
-│        └─ application.yml
+│  ├─ main/
+│  │  ├─ java/
+│  │  │  └─ za/co/transactiondispute/
+│  │  │     ├─ config/
+│  │  │     ├─ controller/
+│  │  │     ├─ dto/
+│  │  │     ├─ entity/
+│  │  │     ├─ enums/
+│  │  │     ├─ mapper/
+│  │  │     ├─ repository/
+│  │  │     ├─ security/
+│  │  │     ├─ service/
+│  │  │     └─ TransactionDisputeApplication.java
+│  │  └─ resources/
+│  │     ├─ application.yml
+│  │     └─ db/changelog/
+│  └─ test/
 ├─ frontend/
 │  ├─ src/
+│  ├─ angular.json
 │  ├─ package.json
-│  └─ angular.json
+│  └─ tsconfig.json
 ├─ pom.xml
 ├─ transaction-dispute.db
 ├─ README.md
@@ -75,40 +69,40 @@ bitpro-transaction-dispute/
 
 ## Runtime configuration
 
-The backend is configured in `src/main/resources/application.yml`:
+The main application settings are defined in the backend configuration and default values in code:
 
-- App name: `transaction-dispute-api`
-- Database: SQLite file `transaction-dispute.db`
-- Server port: `8081`
-- Default admin credentials:
-  - Username: `admin`
-  - Password: `admin123`
-- Swagger docs: `/swagger-ui.html`
-- OpenAPI docs: `/v3/api-docs`
-- Health endpoint: `/actuator/health`
+- API base URL: `http://localhost:8082/api/v1`
+- Frontend URL: `http://localhost:63370`
+- SQLite database: `transaction-dispute.db`
+- Dev credentials: `dev-user` / `dev-pass123`
+- Swagger UI: `http://localhost:8082/swagger-ui.html`
+- OpenAPI docs: `http://localhost:8082/v3/api-docs`
+- Health endpoint: `http://localhost:8082/actuator/health`
+
+The frontend auto-authenticates with the seeded dev user on startup to keep the operations dashboard immediately available during local development.
 
 ## Features
 
-### Transaction view
-Users can see a list of transactions with:
-- transaction reference
-- account number
-- merchant name
-- amount
-- status
-- action buttons
+### Transaction review
+Users can view transaction data including:
+- reference numbers
+- account numbers
+- merchant names
+- amounts
+- statuses
+- action controls to initiate a dispute
 
-### Dispute submission
+### Dispute creation
 Users can:
-- select a transaction,
-- enter account details,
-- set the disputed amount,
-- choose a reason code,
-- add a description,
-- submit the dispute.
+- select a transaction
+- enter account details
+- specify the disputed amount
+- choose a dispute reason
+- add a narrative description
+- submit a dispute for review
 
 ### Dispute tracking
-The disputes screen shows:
+The dashboard exposes dispute lifecycle information such as:
 - dispute ID
 - linked transaction reference
 - account number
@@ -116,35 +110,35 @@ The disputes screen shows:
 - status
 - created date
 
-## API endpoints
+## API overview
 
-Base URL: `http://localhost:8081/api/v1`
+Base URL: `http://localhost:8082/api/v1`
 
 ### Transactions
-- `GET /api/v1/transactions` - View all transactions
-- `GET /api/v1/transactions/{reference}` - View one transaction by reference
-- `POST /api/v1/transactions` - Create a transaction
+- `GET /transactions` - List transactions
+- `GET /transactions/{reference}` - Fetch a transaction by reference
+- `POST /transactions` - Create a transaction
 
 ### Disputes
-- `GET /api/v1/disputes` - View all disputes
-- `GET /api/v1/disputes/{id}` - View one dispute by ID
-- `POST /api/v1/disputes` - Submit a new dispute
+- `GET /disputes` - List disputes
+- `GET /disputes/{id}` - Fetch a dispute by ID
+- `POST /disputes` - Submit a new dispute
 
-### Monitoring
+### Operational endpoints
 - `GET /actuator/health` - Health status
 - `GET /swagger-ui.html` - Swagger UI
-- `GET /v3/api-docs` - OpenAPI JSON
+- `GET /v3/api-docs` - OpenAPI endpoint
 
-## Build and run instructions
+## Quick start
 
-### 1. Prerequisites
-Install:
-- Java 21+
+### Prerequisites
+Install the following locally:
+- Java 21
 - Maven 3.9+
 - Node.js 18+
 - npm
 
-### 2. Backend build and run
+### 1. Start the backend
 From the project root:
 
 ```bash
@@ -152,102 +146,81 @@ mvn clean install
 mvn spring-boot:run
 ```
 
-The backend will start on:
+The backend should be available at:
 
 ```text
-http://localhost:8081
+http://localhost:8082
 ```
 
-To verify it is running:
+To confirm it is running:
 
 ```bash
-curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
 ```
 
-Expected output should include:
+Expected result:
 
 ```json
 {"status":"UP"}
 ```
 
-### 3. Frontend build and run
-From the `frontend` folder:
+### 2. Start the frontend
+From the frontend folder:
 
 ```bash
 cd frontend
 npm install
-npm start -- --host 0.0.0.0 --port 4200
+npm start -- --host 0.0.0.0 --port 63370
 ```
 
-The Angular app usually runs on:
+Open:
 
 ```text
-http://localhost:4200
+http://localhost:63370
 ```
 
-If port 4200 is already in use, Angular will prompt to use another port automatically. A typical fallback is:
-
-```text
-http://localhost:55698
-```
-
-To create a production build:
+### 3. Create a production build
 
 ```bash
 cd frontend
 npm run build
 ```
 
-### Frontend startup notes
-- The backend must already be running on port 8081 before the frontend can load API data.
-- If Angular asks: `Would you like to use a different port?`, answer `Y` and continue with the suggested port.
-- The app expects the backend at `http://localhost:8081/api/v1` and uses CORS for local development.
-- If you want to launch it without the interactive prompt, use a free port explicitly:
+## Authentication and local access
 
-```bash
-cd frontend
-npm start -- --host 0.0.0.0 --port 4200
-```
+The application uses Spring Security with HTTP Basic authentication for the local portal flow.
 
-or another available port such as:
+Default local credentials:
+- Username: `dev-user`
+- Password: `dev-pass123`
 
-```bash
-cd frontend
-npm start -- --host 0.0.0.0 --port 4300
-```
+The frontend auto-logs in with these values when the app loads, so the dashboard is available immediately without a separate sign-in page.
 
-## Database
+## Database and migration flow
 
-The application uses SQLite and stores data in the project root file:
+The app uses SQLite and stores data in the project root file:
 
 ```text
 transaction-dispute.db
 ```
 
-The schema and seed data are managed with Liquibase, not a Java seeder. The master changelog lives in:
+Schema creation and seed data are managed through Liquibase changelogs under:
 
 ```text
-src/main/resources/db/changelog/db.changelog-master.yaml
+src/main/resources/db/changelog/
 ```
 
-This ensures the database is created and populated consistently every time the app starts from a clean database.
+This keeps the database easy to recreate and helps ensure consistent data initialization across local runs.
 
-> If the SQLite file already exists and contains stale tables, delete it before restarting the backend so Liquibase can apply the changesets cleanly.
+> If a stale SQLite database is causing startup issues, remove the existing file and restart the backend so Liquibase can rebuild the schema cleanly.
 
-## Data seeding and migration flow
+## Notes for local development
 
-The project uses Liquibase change sets to:
+- If a stale Java or Node process is holding the expected ports, stop it before restarting the app.
+- The backend must be running before the frontend can successfully load API data.
+- If you need a clean database reset during development, delete the SQLite file and restart the backend.
+- The portal is intentionally focused on local, demo-friendly usage rather than a production-grade multi-tenant banking platform.
 
-1. Create the `accounts` table
-2. Create the `transactions` table
-3. Create the `disputes` table
-4. Insert sample account records
-5. Insert sample transaction records
-6. Insert sample dispute records
-
-This approach keeps database changes versioned and repeatable, and avoids runtime seeding logic in Java.
-
-## SQL scripts and database schema
 
 The schema is defined in the Liquibase master changelog and corresponds to the following SQLite tables:
 
