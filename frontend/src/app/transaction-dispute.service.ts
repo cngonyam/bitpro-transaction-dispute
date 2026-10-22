@@ -43,7 +43,7 @@ export interface AuthResponse {
 
 @Injectable({ providedIn: 'root' })
 export class TransactionDisputeService {
-  private readonly apiUrl = 'http://localhost:8082/api/v1';
+  private readonly apiUrl = '/api/v1';
   private authToken = '';
 
   constructor(private http: HttpClient) {}

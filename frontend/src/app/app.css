@@ -320,7 +320,7 @@ th {
 label {
   display: grid;
   gap: 8px;
-  color: #dfe7f3;
+  color: #0f172a;
   font-weight: 600;
 }
 
@@ -328,11 +328,32 @@ input,
 select,
 textarea {
   width: 100%;
-  background: rgba(255, 255, 255, 0.02);
-  color: #f8fafc;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 10px;
   padding: 10px 12px;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  color: #0f172a !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(15, 23, 42, 0.58);
 }
 
 input:focus,
