@@ -129,10 +129,16 @@ The local database is stored at the project root:
 ```text
 transaction-dispute.db
 ```
+Or query a specific table in one command:
+
 sqlite3 transaction-dispute.db "SELECT * FROM accounts;"
 sqlite3 transaction-dispute.db "SELECT * FROM transactions;"
 sqlite3 transaction-dispute.db "SELECT * FROM disputes;"
 
+If sqlite3 is not installed on your machine, use Python instead:
+python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM accounts LIMIT 10').fetchall())"
+python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM transactions LIMIT 10').fetchall())"
+python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM disputes LIMIT 10').fetchall())"
 
 
 Schema and seed data are managed via Liquibase under:
