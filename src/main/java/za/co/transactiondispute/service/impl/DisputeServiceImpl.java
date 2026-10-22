@@ -1,10 +1,12 @@
 package za.co.transactiondispute.service.impl;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.entity.Transaction;
+import za.co.transactiondispute.entity.UserProfile;
 import za.co.transactiondispute.enums.DisputeStatus;
 import za.co.transactiondispute.exception.ResourceNotFoundException;
 import za.co.transactiondispute.integration.EmailClient;
@@ -12,6 +14,7 @@ import za.co.transactiondispute.integration.SmsClient;
 import za.co.transactiondispute.repository.DisputeRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
 import za.co.transactiondispute.service.DisputeService;
+import za.co.transactiondispute.service.UserProfileService;
 import za.co.transactiondispute.validation.DisputeValidator;
 
 import java.time.LocalDateTime;
@@ -28,19 +31,22 @@ public class DisputeServiceImpl implements DisputeService {
     private final EmailClient emailClient;
     private final SmsClient smsClient;
     private final CustomerAccountContext customerAccountContext;
+    private final UserProfileService userProfileService;
 
     public DisputeServiceImpl(DisputeRepository disputeRepository,
                               TransactionRepository transactionRepository,
                               DisputeValidator disputeValidator,
                               EmailClient emailClient,
                               SmsClient smsClient,
-                              CustomerAccountContext customerAccountContext) {
+                              CustomerAccountContext customerAccountContext,
+                              UserProfileService userProfileService) {
         this.disputeRepository = disputeRepository;
         this.transactionRepository = transactionRepository;
         this.disputeValidator = disputeValidator;
         this.emailClient = emailClient;
         this.smsClient = smsClient;
         this.customerAccountContext = customerAccountContext;
+        this.userProfileService = userProfileService;
     }
 
     @Override
@@ -73,6 +79,11 @@ public class DisputeServiceImpl implements DisputeService {
             throw new IllegalArgumentException("Customers can only dispute transactions on their own account.");
         }
 
+        String username = SecurityContextHolder.getContext().getAuthentication() != null
+                ? SecurityContextHolder.getContext().getAuthentication().getName()
+                : "dev-user";
+        UserProfile assignedProfile = userProfileService.getProfile(username);
+
         LocalDateTime now = LocalDateTime.now();
         Dispute dispute = Dispute.builder()
                 .disputeId("DSP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
@@ -81,6 +92,7 @@ public class DisputeServiceImpl implements DisputeService {
                 .disputedAmount(request.getDisputedAmount())
                 .reasonCode(request.getReasonCode())
                 .description(request.getDescription())
+                .assignedToFullName(assignedProfile.getFullName())
                 .status(DisputeStatus.OPEN)
                 .createdAt(now)
                 .updatedAt(now)

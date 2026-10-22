@@ -178,6 +178,7 @@
                     <div><span>Account</span><strong>{{ selectedDispute.accountNumber }}</strong></div>
                     <div><span>Amount</span><strong>{{ formatAmount(selectedDispute.disputedAmount) }}</strong></div>
                     <div><span>Reason</span><strong>{{ selectedDispute.reasonCode }}</strong></div>
+                    <div><span>Managed by</span><strong>{{ selectedDispute.assignedToFullName || 'Unassigned' }}</strong></div>
                     <div><span>Created</span><strong>{{ formatDate(selectedDispute.createdAt) }}</strong></div>
                   </div>
 

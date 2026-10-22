@@ -21,6 +21,7 @@ public class DisputeResponse {
     private BigDecimal disputedAmount;
     private String reasonCode;
     private String description;
+    private String assignedToFullName;
     private DisputeStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

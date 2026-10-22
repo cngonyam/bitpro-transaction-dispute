@@ -14,6 +14,7 @@ import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.entity.Transaction;
+import za.co.transactiondispute.entity.UserProfile;
 import za.co.transactiondispute.enums.DisputeStatus;
 import za.co.transactiondispute.enums.TransactionType;
 import za.co.transactiondispute.integration.EmailClient;
@@ -161,7 +162,17 @@ class ServiceCoverageTest {
 
         EmailClient emailClient = mock(EmailClient.class);
         SmsClient smsClient = mock(SmsClient.class);
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, disputeValidator, emailClient, smsClient, customerAccountContext);
+        za.co.transactiondispute.service.UserProfileService userProfileService = mock(za.co.transactiondispute.service.UserProfileService.class);
+        when(userProfileService.getProfile(anyString())).thenReturn(UserProfile.builder()
+                .username("dev-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .email("ndumiso.ngonyama@bitpro.co.za")
+                .phone("+27 11 555 0123")
+                .department("Customer Operations")
+                .region("Johannesburg, South Africa")
+                .build());
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, disputeValidator, emailClient, smsClient, customerAccountContext, userProfileService);
         Dispute dispute = Dispute.builder()
                 .id(1L)
                 .disputeId("DSP-ABC123")
@@ -170,6 +181,7 @@ class ServiceCoverageTest {
                 .disputedAmount(new BigDecimal("25.00"))
                 .reasonCode("FRAUD")
                 .description("Issue")
+                .assignedToFullName("Ndumiso Ngonyama")
                 .status(DisputeStatus.OPEN)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())

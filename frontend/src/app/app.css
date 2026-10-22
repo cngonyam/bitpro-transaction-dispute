@@ -328,11 +328,15 @@ input,
 select,
 textarea {
   width: 100%;
+  min-height: 46px;
   background: #ffffff;
   color: #0f172a;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 10px;
   padding: 10px 12px;
+  line-height: 1.4;
+  font-size: 1rem;
+  box-sizing: border-box;
 }
 
 input:-webkit-autofill,
@@ -483,8 +487,8 @@ textarea {
 
 .status-grid-detail {
   display: grid;
-  grid-template-columns: repeat(2, minmax(150px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(170px, 1fr));
+  gap: 18px 16px;
 }
 
 .status-grid-detail div {
@@ -493,11 +497,22 @@ textarea {
   background: rgba(255, 255, 255, 0.02);
   border-radius: 10px;
   padding: 12px;
+  min-height: 84px;
+  min-width: 0;
+  align-items: start;
 }
 
 .status-grid-detail span {
   color: #dfe7f3;
   font-size: 0.8rem;
+}
+
+.status-grid-detail strong {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .timeline {

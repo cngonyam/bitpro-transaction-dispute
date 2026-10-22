@@ -31,6 +31,7 @@ export interface Dispute {
   disputedAmount: number;
   reasonCode: string;
   description?: string;
+  assignedToFullName?: string;
   status: string;
   createdAt?: string;
   updatedAt?: string;
@@ -39,6 +40,17 @@ export interface Dispute {
 export interface AuthResponse {
   token: string;
   username: string;
+}
+
+export interface UserProfile {
+  id?: number;
+  username?: string;
+  fullName: string;
+  role: string;
+  email: string;
+  phone: string;
+  department: string;
+  region: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -96,6 +108,18 @@ export class TransactionDisputeService {
 
   getDisputes(): Observable<Dispute[]> {
     return this.http.get<Dispute[]>(`${this.apiUrl}/disputes`, {
+      headers: this.getHeaders(),
+    });
+  }
+
+  getProfile(): Observable<UserProfile> {
+    return this.http.get<UserProfile>(`${this.apiUrl}/profile`, {
+      headers: this.getHeaders(),
+    });
+  }
+
+  updateProfile(profile: UserProfile): Observable<UserProfile> {
+    return this.http.put<UserProfile>(`${this.apiUrl}/profile`, profile, {
       headers: this.getHeaders(),
     });
   }
