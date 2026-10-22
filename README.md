@@ -95,6 +95,35 @@ cd frontend
 npm run build
 ```
 
+## Docker deployment
+
+### Build and run with Docker Compose
+
+From the project root:
+
+```bash
+docker compose up --build -d
+```
+
+The app will be available at:
+
+- Frontend: `http://localhost:8080`
+- Backend: `http://localhost:8082`
+- Swagger UI: `http://localhost:8082/swagger-ui.html`
+
+To stop the containers:
+
+```bash
+docker compose down
+```
+
+### Docker files included
+
+- `Dockerfile` for the backend
+- `docker-compose.yml` for running both services
+- `frontend/Dockerfile` for the Angular app
+- `frontend/nginx.conf` for reverse proxying `/api` to the backend
+
 ## Local credentials
 
 The app is seeded with a local demo user:
