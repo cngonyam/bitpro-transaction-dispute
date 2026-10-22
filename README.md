@@ -129,17 +129,22 @@ The local database is stored at the project root:
 ```text
 transaction-dispute.db
 ```
-Or query a specific table in one command:
 
+You can inspect it directly with SQLite:
+
+```bash
 sqlite3 transaction-dispute.db "SELECT * FROM accounts;"
 sqlite3 transaction-dispute.db "SELECT * FROM transactions;"
 sqlite3 transaction-dispute.db "SELECT * FROM disputes;"
+```
 
-If sqlite3 is not installed on your machine, use Python instead:
+If `sqlite3` is not installed, use Python instead:
+
+```bash
 python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM accounts LIMIT 10').fetchall())"
 python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM transactions LIMIT 10').fetchall())"
 python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM disputes LIMIT 10').fetchall())"
-
+```
 
 Schema and seed data are managed via Liquibase under:
 
@@ -147,7 +152,66 @@ Schema and seed data are managed via Liquibase under:
 src/main/resources/db/changelog/
 ```
 
-If the database becomes stale, remove the SQLite file and restart the backend so Liquibase recreates it.
+## Using Liquibase to update the database
+
+This project does not use a separate Liquibase CLI plugin. The standard workflow is:
+
+1. Add a new changeSet to the master changelog file:
+
+```text
+src/main/resources/db/changelog/db.changelog-master.yaml
+```
+
+2. Use a unique, incremental changeSet id such as `008-add-new-column`.
+
+3. Restart the backend so Spring Boot applies the pending Liquibase changes automatically.
+
+```bash
+mvn spring-boot:run
+```
+
+Example changeSet:
+
+```yaml
+databaseChangeLog:
+  - changeSet:
+      id: 008-add-email-to-accounts
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: accounts
+            columns:
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: true
+```
+
+### When you need a clean reset
+
+If the SQLite file is stale or a migration has already been applied in a bad state:
+
+```bash
+rm transaction-dispute.db
+mvn spring-boot:run
+```
+
+On Windows PowerShell:
+
+```powershell
+Remove-Item transaction-dispute.db
+mvn spring-boot:run
+```
+
+This forces Liquibase to rebuild the schema from the changelog files.
+
+### Liquibase rules
+
+- Add each schema change as a new `changeSet`.
+- Never reuse an existing `id`.
+- Keep migrations small and versioned.
+- Restart the app after changing the changelog so Liquibase can apply the update.
 
 ## Notes
 
