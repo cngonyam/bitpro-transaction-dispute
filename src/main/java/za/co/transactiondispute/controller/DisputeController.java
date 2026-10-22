@@ -46,6 +46,7 @@ public class DisputeController {
                 .disputedAmount(dispute.getDisputedAmount())
                 .reasonCode(dispute.getReasonCode())
                 .description(dispute.getDescription())
+                .assignedToFullName(dispute.getAssignedToFullName())
                 .status(dispute.getStatus())
                 .createdAt(dispute.getCreatedAt())
                 .updatedAt(dispute.getUpdatedAt())

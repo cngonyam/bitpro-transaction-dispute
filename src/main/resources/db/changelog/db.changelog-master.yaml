@@ -393,3 +393,107 @@ databaseChangeLog:
               - column:
                   name: updated_at
                   valueComputed: datetime('now', '-4 hours')
+
+  - changeSet:
+      id: 008-create-user-profiles-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: username
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: full_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: VARCHAR(255)
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+              - column:
+                  name: phone
+                  type: VARCHAR(255)
+              - column:
+                  name: department
+                  type: VARCHAR(255)
+              - column:
+                  name: region
+                  type: VARCHAR(255)
+
+  - changeSet:
+      id: 009-insert-default-operator-profile
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: username
+                  value: dev-user
+              - column:
+                  name: full_name
+                  value: Ndumiso Ngonyama
+              - column:
+                  name: role
+                  value: Dispute Operations Lead
+              - column:
+                  name: email
+                  value: ndumiso.ngonyama@bitpro.co.za
+              - column:
+                  name: phone
+                  value: "+27 11 555 0123"
+              - column:
+                  name: department
+                  value: Customer Operations
+              - column:
+                  name: region
+                  value: Johannesburg, South Africa
+
+  - changeSet:
+      id: 010-add-profile-columns-to-disputes
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: disputes
+            columns:
+              - column:
+                  name: assigned_to_full_name
+                  type: VARCHAR(255)
+
+  - changeSet:
+      id: 011-remove-redundant-profile-columns-from-disputes
+      author: Ndumiso Ngonyama
+      changes:
+        - dropColumn:
+            tableName: disputes
+            columnName: assigned_to_username
+        - dropColumn:
+            tableName: disputes
+            columnName: assigned_to_role
+        - dropColumn:
+            tableName: disputes
+            columnName: assigned_to_email
+        - dropColumn:
+            tableName: disputes
+            columnName: assigned_to_phone
+        - dropColumn:
+            tableName: disputes
+            columnName: assigned_to_department
+        - dropColumn:
+            tableName: disputes
+            columnName: assigned_to_region

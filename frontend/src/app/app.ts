@@ -1,19 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { finalize, forkJoin } from 'rxjs';
-import { Dispute, DisputeCreateRequest, Transaction, TransactionDisputeService } from './transaction-dispute.service';
+import { finalize } from 'rxjs';
+import { Dispute, DisputeCreateRequest, Transaction, TransactionDisputeService, UserProfile } from './transaction-dispute.service';
 
 export type DashboardTab = 'transactions' | 'new-dispute' | 'track-dispute' | 'dispute-history' | 'profile';
-
-interface UserProfile {
-  fullName: string;
-  role: string;
-  email: string;
-  phone: string;
-  department: string;
-  region: string;
-}
 
 interface LoginForm {
   username: string;
@@ -62,7 +53,10 @@ export class App implements OnInit {
     description: '',
   };
 
-  constructor(private api: TransactionDisputeService) {}
+  constructor(
+    private api: TransactionDisputeService,
+    private cdr: ChangeDetectorRef,
+  ) {}
 
   ngOnInit(): void {
     this.autoLogin();
@@ -101,25 +95,30 @@ export class App implements OnInit {
           this.isLoggedIn = true;
           this.successMessage = `Welcome back, ${response.username}.`;
 
-          forkJoin({
-            transactions: this.api.getTransactions(),
-            disputes: this.api.getDisputes(),
-          })
-            .pipe(finalize(() => {
-              this.isLoggingIn = false;
-            }))
-            .subscribe({
-              next: ({ transactions, disputes }) => {
-                this.transactions = transactions;
-                this.disputes = disputes;
-                if (!this.selectedDispute && disputes.length > 0) {
-                  this.selectedDispute = disputes[0];
-                }
-              },
-              error: () => {
-                this.errorMessage = 'Unable to load the portal data right now.';
-              },
-            });
+          this.loadProfile();
+
+          this.api.getTransactions().subscribe({
+            next: (transactions) => {
+              this.transactions = transactions;
+              this.cdr.detectChanges();
+            },
+            error: () => {
+              this.errorMessage = 'Unable to load transactions right now.';
+            },
+          });
+
+          this.api.getDisputes().subscribe({
+            next: (disputes) => {
+              this.disputes = disputes;
+              if (!this.selectedDispute && disputes.length > 0) {
+                this.selectedDispute = disputes[0];
+              }
+              this.cdr.detectChanges();
+            },
+            error: () => {
+              this.errorMessage = 'Unable to load the portal data right now.';
+            },
+          });
         },
         error: () => {
           this.isLoggedIn = false;
@@ -127,6 +126,24 @@ export class App implements OnInit {
           this.errorMessage = 'Invalid username or password. Please try the dev credentials.';
         },
       });
+  }
+
+  private loadProfile(): void {
+    this.api.getProfile().subscribe({
+      next: (profile) => {
+        this.profile = { ...this.profile, ...profile };
+      },
+      error: () => {
+        this.profile = {
+          fullName: 'Ndumiso Ngonyama',
+          role: 'Dispute Operations Lead',
+          email: 'ndumiso.ngonyama@bitpro.co.za',
+          phone: '+27 11 555 0123',
+          department: 'Customer Operations',
+          region: 'Johannesburg, South Africa',
+        };
+      },
+    });
   }
 
   logout(): void {
@@ -219,7 +236,7 @@ export class App implements OnInit {
     this.successMessage = '';
 
     this.api.createDispute(this.form).subscribe({
-      next: () => {
+      next: (createdDispute) => {
         this.isSubmitting = false;
         this.successMessage = 'Dispute submitted successfully.';
         this.form = {
@@ -230,7 +247,21 @@ export class App implements OnInit {
           description: '',
         };
         this.selectedTransaction = null;
-        this.loadDisputes();
+
+        this.api.getDisputes().subscribe({
+          next: (data) => {
+            this.disputes = data;
+            this.selectedDispute = data.find((dispute) => dispute.disputeId === createdDispute?.disputeId)
+              ?? createdDispute ?? data[0] ?? null;
+            this.activeTab = 'track-dispute';
+            this.cdr.detectChanges();
+          },
+          error: () => {
+            this.selectedDispute = createdDispute ?? this.selectedDispute;
+            this.activeTab = 'track-dispute';
+            this.cdr.detectChanges();
+          },
+        });
       },
       error: () => {
         this.isSubmitting = false;
@@ -240,8 +271,16 @@ export class App implements OnInit {
   }
 
   updateProfile(): void {
-    this.successMessage = 'Profile updated successfully.';
-    this.errorMessage = '';
+    this.api.updateProfile(this.profile).subscribe({
+      next: (updatedProfile) => {
+        this.profile = updatedProfile;
+        this.successMessage = 'Profile updated successfully.';
+        this.errorMessage = '';
+      },
+      error: () => {
+        this.errorMessage = 'The profile could not be saved right now.';
+      },
+    });
   }
 
   getDisputeProgress(status?: string): number {
