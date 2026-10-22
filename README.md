@@ -54,7 +54,7 @@ bitpro-transaction-dispute/
 ### Prerequisites
 - Java 21
 - Maven 3.9+
-- Node.js 18+
+- Node.js 22+
 - npm
 
 ### 1. Start the backend
@@ -79,13 +79,13 @@ From the frontend folder:
 ```bash
 cd frontend
 npm install
-npm start -- --host 0.0.0.0 --port 63370
+npm start -- --host 0.0.0.0 --port 4200
 ```
 
 Open the app at:
 
 ```text
-http://localhost:63370
+http://localhost:4200
 ```
 
 ### 3. Build the frontend
@@ -96,6 +96,8 @@ npm run build
 ```
 
 ## Docker deployment
+
+This is the recommended way to run the full app in a single stack.
 
 ### Build and run with Docker Compose
 
@@ -110,6 +112,8 @@ The app will be available at:
 - Frontend: `http://localhost:8080`
 - Backend: `http://localhost:8082`
 - Swagger UI: `http://localhost:8082/swagger-ui.html`
+
+The frontend uses a reverse proxy so browser requests are sent to `/api`, which is forwarded to the backend container.
 
 To stop the containers:
 
@@ -135,11 +139,13 @@ The frontend automatically authenticates with these values when it starts.
 
 ## API endpoints
 
-Base URL:
+Base URL for direct backend access:
 
 ```text
 http://localhost:8082/api/v1
 ```
+
+When running via Docker, the frontend is served from `http://localhost:8080` and proxies `/api` to the backend container.
 
 Key endpoints:
 
