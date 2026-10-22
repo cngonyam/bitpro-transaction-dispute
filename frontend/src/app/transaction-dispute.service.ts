@@ -1,6 +1,6 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Observable, map } from 'rxjs';
+import { Observable, map, retry, timer } from 'rxjs';
 
 export interface Transaction {
   id: number;
@@ -64,10 +64,12 @@ export class TransactionDisputeService {
     const cleanedUsername = (username ?? '').trim();
     const authHeader = this.buildBasicAuthHeader(cleanedUsername, password ?? '');
 
-    return this.http.get(`${this.apiUrl}/transactions`, {
-      headers: new HttpHeaders({ Authorization: authHeader }),
-    }).pipe(
-      map(() => ({ token: authHeader, username: cleanedUsername })),
+    return this.requestWithRetry(
+      this.http.get(`${this.apiUrl}/transactions`, {
+        headers: new HttpHeaders({ Authorization: authHeader }),
+      }).pipe(
+        map(() => ({ token: authHeader, username: cleanedUsername })),
+      ),
     );
   }
 
@@ -95,32 +97,51 @@ export class TransactionDisputeService {
   }
 
   getTransactions(): Observable<Transaction[]> {
-    return this.http.get<Transaction[]>(`${this.apiUrl}/transactions`, {
-      headers: this.getHeaders(),
-    });
+    return this.requestWithRetry(
+      this.http.get<Transaction[]>(`${this.apiUrl}/transactions`, {
+        headers: this.getHeaders(),
+      }),
+    );
   }
 
   createDispute(request: DisputeCreateRequest): Observable<Dispute> {
-    return this.http.post<Dispute>(`${this.apiUrl}/disputes`, request, {
-      headers: this.getHeaders(),
-    });
+    return this.requestWithRetry(
+      this.http.post<Dispute>(`${this.apiUrl}/disputes`, request, {
+        headers: this.getHeaders(),
+      }),
+    );
   }
 
   getDisputes(): Observable<Dispute[]> {
-    return this.http.get<Dispute[]>(`${this.apiUrl}/disputes`, {
-      headers: this.getHeaders(),
-    });
+    return this.requestWithRetry(
+      this.http.get<Dispute[]>(`${this.apiUrl}/disputes`, {
+        headers: this.getHeaders(),
+      }),
+    );
   }
 
   getProfile(): Observable<UserProfile> {
-    return this.http.get<UserProfile>(`${this.apiUrl}/profile`, {
-      headers: this.getHeaders(),
-    });
+    return this.requestWithRetry(
+      this.http.get<UserProfile>(`${this.apiUrl}/profile`, {
+        headers: this.getHeaders(),
+      }),
+    );
   }
 
   updateProfile(profile: UserProfile): Observable<UserProfile> {
-    return this.http.put<UserProfile>(`${this.apiUrl}/profile`, profile, {
-      headers: this.getHeaders(),
-    });
+    return this.requestWithRetry(
+      this.http.put<UserProfile>(`${this.apiUrl}/profile`, profile, {
+        headers: this.getHeaders(),
+      }),
+    );
+  }
+
+  private requestWithRetry<T>(request$: Observable<T>): Observable<T> {
+    return request$.pipe(
+      retry({
+        count: 3,
+        delay: (error, retryIndex) => timer(1000 * (retryIndex + 1)),
+      }),
+    );
   }
 }
