@@ -125,15 +125,15 @@
           </div>
 
           <div class="status-overview">
-            <div class="metric-box">
+            <div class="metric-box metric-open">
               <span>Open</span>
               <strong>{{ openDisputeCount }}</strong>
             </div>
-            <div class="metric-box">
+            <div class="metric-box metric-in-review">
               <span>In review</span>
               <strong>{{ inReviewDisputeCount }}</strong>
             </div>
-            <div class="metric-box">
+            <div class="metric-box metric-resolved">
               <span>Resolved</span>
               <strong>{{ resolvedDisputeCount }}</strong>
             </div>
@@ -144,12 +144,19 @@
               <h3>Dispute list</h3>
               <div class="status-list">
                 @for (dispute of disputes; track dispute.id) {
-                  <button type="button" class="status-row" [class.active]="selectedDispute?.id === dispute.id" (click)="selectDisputeToTrack(dispute)">
+                  <button
+                    type="button"
+                    class="status-row"
+                    [class.active]="selectedDispute?.id === dispute.id"
+                    [class.status-open]="dispute.status === 'OPEN'"
+                    [class.status-in-review]="dispute.status === 'IN_REVIEW'"
+                    [class.status-resolved]="dispute.status === 'RESOLVED'"
+                    (click)="selectDisputeToTrack(dispute)">
                     <div>
                       <strong>{{ dispute.disputeId }}</strong>
                       <small>{{ dispute.transactionReference }}</small>
                     </div>
-                    <span class="badge">{{ dispute.status }}</span>
+                    <span class="badge" [class.status-open]="dispute.status === 'OPEN'" [class.status-in-review]="dispute.status === 'IN_REVIEW'" [class.status-resolved]="dispute.status === 'RESOLVED'">{{ dispute.status }}</span>
                   </button>
                 }
               </div>
@@ -163,7 +170,7 @@
                       <p class="muted-label">Case reference</p>
                       <h3>{{ selectedDispute.disputeId }}</h3>
                     </div>
-                    <span class="badge">{{ selectedDispute.status }}</span>
+                    <span class="badge" [class.status-open]="selectedDispute.status === 'OPEN'" [class.status-in-review]="selectedDispute.status === 'IN_REVIEW'" [class.status-resolved]="selectedDispute.status === 'RESOLVED'">{{ selectedDispute.status }}</span>
                   </div>
 
                   <div class="progress-meta">
