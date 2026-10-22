@@ -129,6 +129,11 @@ The local database is stored at the project root:
 ```text
 transaction-dispute.db
 ```
+sqlite3 transaction-dispute.db "SELECT * FROM accounts;"
+sqlite3 transaction-dispute.db "SELECT * FROM transactions;"
+sqlite3 transaction-dispute.db "SELECT * FROM disputes;"
+
+
 
 Schema and seed data are managed via Liquibase under:
 
