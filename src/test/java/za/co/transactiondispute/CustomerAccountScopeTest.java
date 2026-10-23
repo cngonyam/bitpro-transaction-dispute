@@ -7,6 +7,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.entity.Transaction;
+import za.co.transactiondispute.repository.AccountRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
 import za.co.transactiondispute.service.impl.TransactionServiceImpl;
 
@@ -23,6 +24,9 @@ class CustomerAccountScopeTest {
 
     @Mock
     private CustomerAccountContext customerAccountContext;
+
+    @Mock
+    private AccountRepository accountRepository;
 
     @InjectMocks
     private TransactionServiceImpl transactionService;

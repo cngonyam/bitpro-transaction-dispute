@@ -25,11 +25,9 @@ class DataSeedTest {
     private DisputeRepository disputeRepository;
 
     @Test
-    void shouldSeedSampleDataOnStartup() {
+    void shouldSeedOnlyAccountsOnStartup() {
         assertTrue(accountRepository.count() > 0);
-        assertTrue(transactionRepository.count() > 0);
-        assertTrue(disputeRepository.count() > 0);
-        assertFalse(disputeRepository.findAll().stream()
-                .anyMatch(dispute -> dispute.getCreatedAt() == null || dispute.getUpdatedAt() == null));
+        assertFalse(transactionRepository.count() > 0);
+        assertFalse(disputeRepository.count() > 0);
     }
 }

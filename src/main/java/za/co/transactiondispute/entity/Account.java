@@ -33,5 +33,8 @@ public class Account {
     private BigDecimal availableBalance;
 
     @Column(nullable = false)
+    private BigDecimal balance;
+
+    @Column(nullable = false)
     private String status;
 }

@@ -17,5 +17,6 @@ public class AccountDto {
     private String customerName;
     private String currency;
     private BigDecimal availableBalance;
+    private BigDecimal balance;
     private String status;
 }

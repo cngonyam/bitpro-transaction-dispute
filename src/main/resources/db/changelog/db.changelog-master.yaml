@@ -35,6 +35,11 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
+                  name: balance
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
                   name: status
                   type: VARCHAR(255)
                   constraints:
@@ -140,8 +145,25 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
+                  name: dispute_type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
                   name: description
                   type: TEXT
+              - column:
+                  name: assigned_to_full_name
+                  type: VARCHAR(255)
+              - column:
+                  name: provisional_credit_issued
+                  type: BOOLEAN
+              - column:
+                  name: merchant_evidence_provided
+                  type: BOOLEAN
+              - column:
+                  name: decision_outcome
+                  type: VARCHAR(255)
               - column:
                   name: status
                   type: VARCHAR(255)
@@ -159,243 +181,7 @@ databaseChangeLog:
                     nullable: false
 
   - changeSet:
-      id: 004-insert-account-data
-      author: Ndumiso Ngonyama
-      changes:
-        - insert:
-            tableName: accounts
-            columns:
-              - column:
-                  name: account_number
-                  value: ACC-1001
-              - column:
-                  name: customer_name
-                  value: Jane Smith
-              - column:
-                  name: currency
-                  value: ZAR
-              - column:
-                  name: available_balance
-                  valueNumeric: 12500.50
-              - column:
-                  name: status
-                  value: ACTIVE
-        - insert:
-            tableName: accounts
-            columns:
-              - column:
-                  name: account_number
-                  value: ACC-1002
-              - column:
-                  name: customer_name
-                  value: John Doe
-              - column:
-                  name: currency
-                  value: ZAR
-              - column:
-                  name: available_balance
-                  valueNumeric: 7800.00
-              - column:
-                  name: status
-                  value: ACTIVE
-
-  - changeSet:
-      id: 005-insert-transaction-data
-      author: Ndumiso Ngonyama
-      changes:
-        - insert:
-            tableName: transactions
-            columns:
-              - column:
-                  name: transaction_reference
-                  value: TXN-10001
-              - column:
-                  name: account_number
-                  value: ACC-1001
-              - column:
-                  name: amount
-                  valueNumeric: 120.00
-              - column:
-                  name: currency
-                  value: ZAR
-              - column:
-                  name: type
-                  value: DEBIT
-              - column:
-                  name: merchant_name
-                  value: Clover Mall
-              - column:
-                  name: status
-                  value: SUCCESS
-              - column:
-                  name: transaction_date
-                  valueComputed: datetime('now', '-2 days')
-              - column:
-                  name: description
-                  value: Groceries
-        - insert:
-            tableName: transactions
-            columns:
-              - column:
-                  name: transaction_reference
-                  value: TXN-10002
-              - column:
-                  name: account_number
-                  value: ACC-1002
-              - column:
-                  name: amount
-                  valueNumeric: 850.25
-              - column:
-                  name: currency
-                  value: ZAR
-              - column:
-                  name: type
-                  value: CREDIT
-              - column:
-                  name: merchant_name
-                  value: Payroll
-              - column:
-                  name: status
-                  value: SUCCESS
-              - column:
-                  name: transaction_date
-                  valueComputed: datetime('now', '-1 day')
-              - column:
-                  name: description
-                  value: Salary deposit
-        - insert:
-            tableName: transactions
-            columns:
-              - column:
-                  name: transaction_reference
-                  value: TXN-10003
-              - column:
-                  name: account_number
-                  value: ACC-1001
-              - column:
-                  name: amount
-                  valueNumeric: 340.50
-              - column:
-                  name: currency
-                  value: ZAR
-              - column:
-                  name: type
-                  value: DEBIT
-              - column:
-                  name: merchant_name
-                  value: Fuel Stop
-              - column:
-                  name: status
-                  value: PENDING
-              - column:
-                  name: transaction_date
-                  valueComputed: datetime('now', '-5 hours')
-              - column:
-                  name: description
-                  value: Fuel purchase
-
-  - changeSet:
-      id: 006-insert-dispute-data
-      author: Ndumiso Ngonyama
-      changes:
-        - insert:
-            tableName: disputes
-            columns:
-              - column:
-                  name: dispute_id
-                  value: DSP-AB12CD34
-              - column:
-                  name: transaction_reference
-                  value: TXN-10001
-              - column:
-                  name: account_number
-                  value: ACC-1001
-              - column:
-                  name: disputed_amount
-                  valueNumeric: 120.00
-              - column:
-                  name: reason_code
-                  value: UNRECOGNISED_TRANSACTION
-              - column:
-                  name: description
-                  value: Customer does not recognize this transaction
-              - column:
-                  name: status
-                  value: OPEN
-              - column:
-                  name: created_at
-                  valueComputed: datetime('now', '-1 day')
-              - column:
-                  name: updated_at
-                  valueComputed: datetime('now', '-3 hours')
-        - insert:
-            tableName: disputes
-            columns:
-              - column:
-                  name: dispute_id
-                  value: DSP-9F6A2B11
-              - column:
-                  name: transaction_reference
-                  value: TXN-10003
-              - column:
-                  name: account_number
-                  value: ACC-1001
-              - column:
-                  name: disputed_amount
-                  valueNumeric: 340.50
-              - column:
-                  name: reason_code
-                  value: DUPLICATE_CHARGE
-              - column:
-                  name: description
-                  value: Duplicate charge reported for fuel purchase
-              - column:
-                  name: status
-                  value: IN_REVIEW
-              - column:
-                  name: created_at
-                  valueComputed: datetime('now', '-6 hours')
-              - column:
-                  name: updated_at
-                  valueComputed: datetime('now', '-2 hours')
-
-  - changeSet:
-      id: 007-insert-missing-dispute-data
-      author: Ndumiso Ngonyama
-      changes:
-        - insert:
-            tableName: disputes
-            columns:
-              - column:
-                  name: dispute_id
-                  value: DSP-BCFA9B7C
-              - column:
-                  name: transaction_reference
-                  value: TXN-10002
-              - column:
-                  name: account_number
-                  value: ACC-1002
-              - column:
-                  name: disputed_amount
-                  valueNumeric: 850.25
-              - column:
-                  name: reason_code
-                  value: UNAUTHORIZED_TRANSACTION
-              - column:
-                  name: description
-                  value: Customer disputes salary deposit amount after account review
-              - column:
-                  name: status
-                  value: OPEN
-              - column:
-                  name: created_at
-                  valueComputed: datetime('now', '-12 hours')
-              - column:
-                  name: updated_at
-                  valueComputed: datetime('now', '-4 hours')
-
-  - changeSet:
-      id: 008-create-user-profiles-table
+      id: 004-create-user-profiles-table
       author: Ndumiso Ngonyama
       changes:
         - createTable:
@@ -436,64 +222,27 @@ databaseChangeLog:
                   type: VARCHAR(255)
 
   - changeSet:
-      id: 009-insert-default-operator-profile
+      id: 005-insert-account-data
       author: Ndumiso Ngonyama
       changes:
         - insert:
-            tableName: user_profiles
+            tableName: accounts
             columns:
               - column:
-                  name: username
-                  value: dev-user
+                  name: account_number
+                  value: ACC-1001
               - column:
-                  name: full_name
-                  value: Ndumiso Ngonyama
+                  name: customer_name
+                  value: Jane Smith
               - column:
-                  name: role
-                  value: Dispute Operations Lead
+                  name: currency
+                  value: ZAR
               - column:
-                  name: email
-                  value: ndumiso.ngonyama@bitpro.co.za
+                  name: available_balance
+                  valueNumeric: 0.0
               - column:
-                  name: phone
-                  value: "+27 11 555 0123"
+                  name: balance
+                  valueNumeric: 0.0
               - column:
-                  name: department
-                  value: Customer Operations
-              - column:
-                  name: region
-                  value: Johannesburg, South Africa
-
-  - changeSet:
-      id: 010-add-profile-columns-to-disputes
-      author: Ndumiso Ngonyama
-      changes:
-        - addColumn:
-            tableName: disputes
-            columns:
-              - column:
-                  name: assigned_to_full_name
-                  type: VARCHAR(255)
-
-  - changeSet:
-      id: 011-remove-redundant-profile-columns-from-disputes
-      author: Ndumiso Ngonyama
-      changes:
-        - dropColumn:
-            tableName: disputes
-            columnName: assigned_to_username
-        - dropColumn:
-            tableName: disputes
-            columnName: assigned_to_role
-        - dropColumn:
-            tableName: disputes
-            columnName: assigned_to_email
-        - dropColumn:
-            tableName: disputes
-            columnName: assigned_to_phone
-        - dropColumn:
-            tableName: disputes
-            columnName: assigned_to_department
-        - dropColumn:
-            tableName: disputes
-            columnName: assigned_to_region
+                  name: status
+                  value: ACTIVE

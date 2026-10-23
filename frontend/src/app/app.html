@@ -38,12 +38,24 @@
             <span>{{ transactions.length }} records</span>
           </div>
 
+          <div class="panel-summary">
+            <div class="mini-metric">
+              <span>Available balance</span>
+              <strong>{{ formatAmount(getAvailableBalance()) }}</strong>
+            </div>
+            <div class="mini-metric">
+              <span>Balance</span>
+              <strong>{{ formatAmount(getAccountBalance()) }}</strong>
+            </div>
+          </div>
+
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Reference</th>
                   <th>Account</th>
+                  <th>Value</th>
                   <th>Merchant</th>
                   <th>Amount</th>
                   <th>Status</th>
@@ -55,10 +67,20 @@
                   <tr>
                     <td>{{ transaction.transactionReference }}</td>
                     <td>{{ transaction.accountNumber }}</td>
+                    <td>{{ transaction.description || (transaction.status.toUpperCase() === 'PENDING' ? formatAmount(transaction.amount, transaction.type) : '—') }}</td>
                     <td>{{ transaction.merchantName }}</td>
-                    <td>{{ formatAmount(transaction.amount) }}</td>
+                    <td>{{ formatAmount(transaction.amount, transaction.type) }}</td>
                     <td><span class="badge status-badge">{{ transaction.status }}</span></td>
-                    <td><button type="button" class="link-button" (click)="selectTransaction(transaction)">Dispute</button></td>
+                    <td>
+                      <button
+                        type="button"
+                        class="link-button"
+                        [disabled]="isCreditTransaction(transaction)"
+                        [attr.aria-disabled]="isCreditTransaction(transaction)"
+                        (click)="selectTransaction(transaction)">
+                        {{ isCreditTransaction(transaction) ? 'Not eligible' : 'Dispute' }}
+                      </button>
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -94,6 +116,13 @@
               </label>
 
               <label>
+                Dispute type
+                <select [(ngModel)]="form.disputeType" name="disputeType" required>
+                  <option value="CHARGEBACK">Bank / payment dispute</option>
+                </select>
+              </label>
+
+              <label>
                 Reason code
                 <select [(ngModel)]="form.reasonCode" name="reasonCode" required>
                   <option value="">Select reason</option>
@@ -101,6 +130,37 @@
                   <option value="DUPLICATE">Duplicate transaction</option>
                   <option value="FRAUD">Fraudulent transaction</option>
                   <option value="NOT_RECEIVED">Not received</option>
+                  <option value="UNAUTHORIZED_DEBIT">Unauthorized debit</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="field-grid">
+              @if (form.disputeType === 'CHARGEBACK') {
+                <label>
+                  Provisional credit issued
+                  <select [(ngModel)]="form.provisionalCreditIssued" name="provisionalCreditIssued">
+                    <option [ngValue]="false">No</option>
+                    <option [ngValue]="true">Yes</option>
+                  </select>
+                </label>
+
+                <label>
+                  Merchant evidence provided
+                  <select [(ngModel)]="form.merchantEvidenceProvided" name="merchantEvidenceProvided">
+                    <option [ngValue]="false">No</option>
+                    <option [ngValue]="true">Yes</option>
+                  </select>
+                </label>
+              }
+
+              <label>
+                Decision outcome
+                <select [(ngModel)]="form.decisionOutcome" name="decisionOutcome">
+                  <option value="">Select outcome</option>
+                  <option value="AUTHORIZED">Authorized</option>
+                  <option value="UNAUTHORIZED">Unauthorized</option>
+                  <option value="REVERSED">Reversed</option>
                 </select>
               </label>
             </div>
@@ -151,12 +211,22 @@
                     [class.status-open]="dispute.status === 'OPEN'"
                     [class.status-in-review]="dispute.status === 'IN_REVIEW'"
                     [class.status-resolved]="dispute.status === 'RESOLVED'"
+                    [class.status-rejected]="dispute.status === 'REJECTED'"
+                    [class.status-provisional-credit-issued]="dispute.status === 'PROVISIONAL_CREDIT_ISSUED'"
+                    [class.status-merchant-response-pending]="dispute.status === 'MERCHANT_RESPONSE_PENDING'"
                     (click)="selectDisputeToTrack(dispute)">
                     <div>
                       <strong>{{ dispute.disputeId }}</strong>
                       <small>{{ dispute.transactionReference }}</small>
                     </div>
-                    <span class="badge" [class.status-open]="dispute.status === 'OPEN'" [class.status-in-review]="dispute.status === 'IN_REVIEW'" [class.status-resolved]="dispute.status === 'RESOLVED'">{{ dispute.status }}</span>
+                    <span
+                      class="badge"
+                      [class.status-open]="dispute.status === 'OPEN'"
+                      [class.status-in-review]="dispute.status === 'IN_REVIEW'"
+                      [class.status-resolved]="dispute.status === 'RESOLVED'"
+                      [class.status-rejected]="dispute.status === 'REJECTED'"
+                      [class.status-provisional-credit-issued]="dispute.status === 'PROVISIONAL_CREDIT_ISSUED'"
+                      [class.status-merchant-response-pending]="dispute.status === 'MERCHANT_RESPONSE_PENDING'">{{ dispute.status }}</span>
                   </button>
                 }
               </div>
@@ -170,7 +240,14 @@
                       <p class="muted-label">Case reference</p>
                       <h3>{{ selectedDispute.disputeId }}</h3>
                     </div>
-                    <span class="badge" [class.status-open]="selectedDispute.status === 'OPEN'" [class.status-in-review]="selectedDispute.status === 'IN_REVIEW'" [class.status-resolved]="selectedDispute.status === 'RESOLVED'">{{ selectedDispute.status }}</span>
+                    <span
+                      class="badge"
+                      [class.status-open]="selectedDispute.status === 'OPEN'"
+                      [class.status-in-review]="selectedDispute.status === 'IN_REVIEW'"
+                      [class.status-resolved]="selectedDispute.status === 'RESOLVED'"
+                      [class.status-rejected]="selectedDispute.status === 'REJECTED'"
+                      [class.status-provisional-credit-issued]="selectedDispute.status === 'PROVISIONAL_CREDIT_ISSUED'"
+                      [class.status-merchant-response-pending]="selectedDispute.status === 'MERCHANT_RESPONSE_PENDING'">{{ selectedDispute.status }}</span>
                   </div>
 
                   <div class="progress-meta">

@@ -2,6 +2,7 @@ package za.co.transactiondispute.validation;
 
 import org.springframework.stereotype.Component;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
+import za.co.transactiondispute.enums.DisputeType;
 
 @Component
 public class DisputeValidator {
@@ -21,6 +22,9 @@ public class DisputeValidator {
         }
         if (request.getReasonCode() == null || request.getReasonCode().isBlank()) {
             throw new IllegalArgumentException("Reason code is required");
+        }
+        if (request.getDisputeType() == null) {
+            throw new IllegalArgumentException("Dispute type is required");
         }
     }
 }

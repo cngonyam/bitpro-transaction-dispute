@@ -3,6 +3,9 @@ package za.co.transactiondispute.mapper;
 import org.springframework.stereotype.Component;
 import za.co.transactiondispute.dto.TransactionDto;
 import za.co.transactiondispute.entity.Transaction;
+import za.co.transactiondispute.enums.TransactionType;
+
+import java.math.BigDecimal;
 
 @Component
 public class TransactionMapper {
@@ -16,7 +19,8 @@ public class TransactionMapper {
                 .id(transaction.getId())
                 .transactionReference(transaction.getTransactionReference())
                 .accountNumber(transaction.getAccountNumber())
-                .amount(transaction.getAmount())
+                .accountBalance(null)
+                .amount(normalizeAmount(transaction.getType(), transaction.getAmount()))
                 .currency(transaction.getCurrency())
                 .type(transaction.getType())
                 .merchantName(transaction.getMerchantName())
@@ -35,7 +39,7 @@ public class TransactionMapper {
                 .id(dto.getId())
                 .transactionReference(dto.getTransactionReference())
                 .accountNumber(dto.getAccountNumber())
-                .amount(dto.getAmount())
+                .amount(normalizeAmount(dto.getType(), dto.getAmount()))
                 .currency(dto.getCurrency())
                 .type(dto.getType())
                 .merchantName(dto.getMerchantName())
@@ -43,5 +47,14 @@ public class TransactionMapper {
                 .transactionDate(dto.getTransactionDate())
                 .description(dto.getDescription())
                 .build();
+    }
+
+    private BigDecimal normalizeAmount(TransactionType type, BigDecimal amount) {
+        if (amount == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal magnitude = amount.abs();
+        return type == TransactionType.DEBIT ? magnitude.negate() : magnitude;
     }
 }
