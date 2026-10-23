@@ -6,6 +6,7 @@ import za.co.transactiondispute.dto.AccountDto;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.service.AccountService;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -30,11 +31,15 @@ public class AccountController {
 
     @PostMapping("/accounts")
     public ResponseEntity<Account> createAccount(@RequestBody AccountDto accountDto) {
+        BigDecimal availableBalance = accountDto.getAvailableBalance() == null ? BigDecimal.ZERO : accountDto.getAvailableBalance();
+        BigDecimal balance = accountDto.getBalance() == null ? availableBalance : accountDto.getBalance();
+
         Account account = Account.builder()
                 .accountNumber(accountDto.getAccountNumber())
                 .customerName(accountDto.getCustomerName())
                 .currency(accountDto.getCurrency())
-                .availableBalance(accountDto.getAvailableBalance())
+                .availableBalance(availableBalance)
+                .balance(balance)
                 .status(accountDto.getStatus())
                 .build();
 

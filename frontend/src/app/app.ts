@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
-import { Dispute, DisputeCreateRequest, Transaction, TransactionDisputeService, UserProfile } from './transaction-dispute.service';
+import { AccountSummary, Dispute, DisputeCreateRequest, Transaction, TransactionDisputeService, UserProfile } from './transaction-dispute.service';
 
 export type DashboardTab = 'transactions' | 'new-dispute' | 'track-dispute' | 'dispute-history' | 'profile';
 
@@ -22,6 +22,7 @@ export class App implements OnInit {
   activeTab: DashboardTab = 'transactions';
   transactions: Transaction[] = [];
   disputes: Dispute[] = [];
+  accountSummary: AccountSummary | null = null;
   selectedTransaction: Transaction | null = null;
   selectedDispute: Dispute | null = null;
   historyFilter: 'ALL' | 'OPEN' | 'IN_REVIEW' | 'RESOLVED' = 'ALL';
@@ -50,7 +51,11 @@ export class App implements OnInit {
     accountNumber: '',
     disputedAmount: 0,
     reasonCode: '',
+    disputeType: 'CHARGEBACK',
     description: '',
+    provisionalCreditIssued: false,
+    merchantEvidenceProvided: false,
+    decisionOutcome: '',
   };
 
   constructor(
@@ -95,30 +100,7 @@ export class App implements OnInit {
           this.isLoggedIn = true;
           this.successMessage = `Welcome back, ${response.username}.`;
 
-          this.loadProfile();
-
-          this.api.getTransactions().subscribe({
-            next: (transactions) => {
-              this.transactions = transactions;
-              this.cdr.detectChanges();
-            },
-            error: () => {
-              this.errorMessage = 'Unable to load transactions right now.';
-            },
-          });
-
-          this.api.getDisputes().subscribe({
-            next: (disputes) => {
-              this.disputes = disputes;
-              if (!this.selectedDispute && disputes.length > 0) {
-                this.selectedDispute = disputes[0];
-              }
-              this.cdr.detectChanges();
-            },
-            error: () => {
-              this.errorMessage = 'Unable to load the portal data right now.';
-            },
-          });
+          this.refreshDashboard();
         },
         error: () => {
           this.isLoggedIn = false;
@@ -126,6 +108,34 @@ export class App implements OnInit {
           this.errorMessage = 'Invalid username or password. Please try the dev credentials.';
         },
       });
+  }
+
+  private refreshDashboard(): void {
+    this.loadProfile();
+    this.loadAccountSummary();
+
+    this.api.getTransactions().subscribe({
+      next: (transactions) => {
+        this.transactions = transactions;
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.errorMessage = 'Unable to load transactions right now.';
+      },
+    });
+
+    this.api.getDisputes().subscribe({
+      next: (disputes) => {
+        this.disputes = disputes;
+        if (!this.selectedDispute && disputes.length > 0) {
+          this.selectedDispute = disputes[0];
+        }
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.errorMessage = 'Unable to load the portal data right now.';
+      },
+    });
   }
 
   private loadProfile(): void {
@@ -142,6 +152,17 @@ export class App implements OnInit {
           department: 'Customer Operations',
           region: 'Johannesburg, South Africa',
         };
+      },
+    });
+  }
+
+  private loadAccountSummary(): void {
+    this.api.getAccounts().subscribe({
+      next: (accounts) => {
+        this.accountSummary = accounts[0] ?? null;
+      },
+      error: () => {
+        this.accountSummary = null;
       },
     });
   }
@@ -209,15 +230,26 @@ export class App implements OnInit {
   }
 
   selectTransaction(transaction: Transaction): void {
+    if (this.isCreditTransaction(transaction)) {
+      this.errorMessage = 'Credit transactions are not eligible for dispute submission.';
+      this.successMessage = '';
+      return;
+    }
+
+    const absoluteAmount = Math.abs(Number(transaction.amount ?? 0));
     this.selectedTransaction = transaction;
     this.form.transactionReference = transaction.transactionReference;
     this.form.accountNumber = transaction.accountNumber;
-    this.form.disputedAmount = transaction.amount;
+    this.form.disputedAmount = absoluteAmount;
     this.form.reasonCode = 'MERCHANT_ERROR';
+    this.form.disputeType = 'CHARGEBACK';
     this.form.description = `Dispute for ${transaction.merchantName}`;
-    this.activeTab = 'new-dispute';
+    this.form.provisionalCreditIssued = false;
+    this.form.merchantEvidenceProvided = false;
+    this.form.decisionOutcome = '';
     this.errorMessage = '';
-    this.successMessage = '';
+    this.successMessage = 'Transaction selected. Please review and submit the dispute details.';
+    this.activeTab = 'new-dispute';
   }
 
   selectDisputeToTrack(dispute: Dispute): void {
@@ -226,16 +258,51 @@ export class App implements OnInit {
   }
 
   submitDispute(): void {
-    if (!this.form.transactionReference || !this.form.accountNumber || !this.form.reasonCode) {
-      this.errorMessage = 'Please select a transaction and complete the dispute details.';
+    if (this.isSubmitting) {
       return;
     }
+
+    const transactionReference = (this.form.transactionReference ?? '').trim();
+    const accountNumber = (this.form.accountNumber ?? '').trim();
+    const disputeType = (this.form.disputeType ?? 'CHARGEBACK').toUpperCase();
+    const reasonCode = (this.form.reasonCode ?? '').trim();
+
+    if (!transactionReference || !accountNumber || !reasonCode || !disputeType) {
+      this.errorMessage = 'Please select a transaction and complete the dispute type and details.';
+      return;
+    }
+
+    const selectedTransaction = this.transactions.find(
+      (transaction) => transaction.transactionReference === transactionReference,
+    ) ?? this.selectedTransaction;
+
+    if (!selectedTransaction) {
+      this.errorMessage = 'Please select a valid transaction before submitting the dispute.';
+      return;
+    }
+
+    if (this.isCreditTransaction(selectedTransaction)) {
+      this.errorMessage = 'Credit transactions cannot be disputed.';
+      return;
+    }
+
+    const normalizedPayload: DisputeCreateRequest = {
+      ...this.form,
+      transactionReference,
+      accountNumber,
+      disputeType: 'CHARGEBACK',
+      reasonCode,
+      description: (this.form.description ?? '').trim() || `Dispute for ${selectedTransaction.merchantName}`,
+      provisionalCreditIssued: Boolean(this.form.provisionalCreditIssued),
+      merchantEvidenceProvided: Boolean(this.form.merchantEvidenceProvided),
+      decisionOutcome: this.form.decisionOutcome?.trim() ?? '',
+    };
 
     this.isSubmitting = true;
     this.errorMessage = '';
     this.successMessage = '';
 
-    this.api.createDispute(this.form).subscribe({
+    this.api.createDispute(normalizedPayload).subscribe({
       next: (createdDispute) => {
         this.isSubmitting = false;
         this.successMessage = 'Dispute submitted successfully.';
@@ -244,7 +311,11 @@ export class App implements OnInit {
           accountNumber: '',
           disputedAmount: 0,
           reasonCode: '',
+          disputeType: 'CHARGEBACK',
           description: '',
+          provisionalCreditIssued: false,
+          merchantEvidenceProvided: false,
+          decisionOutcome: '',
         };
         this.selectedTransaction = null;
 
@@ -253,11 +324,15 @@ export class App implements OnInit {
             this.disputes = data;
             this.selectedDispute = data.find((dispute) => dispute.disputeId === createdDispute?.disputeId)
               ?? createdDispute ?? data[0] ?? null;
+            this.loadAccountSummary();
+            this.loadTransactions();
             this.activeTab = 'track-dispute';
             this.cdr.detectChanges();
           },
           error: () => {
             this.selectedDispute = createdDispute ?? this.selectedDispute;
+            this.loadAccountSummary();
+            this.loadTransactions();
             this.activeTab = 'track-dispute';
             this.cdr.detectChanges();
           },
@@ -281,6 +356,10 @@ export class App implements OnInit {
         this.errorMessage = 'The profile could not be saved right now.';
       },
     });
+  }
+
+  isCreditTransaction(transaction?: Transaction | null): boolean {
+    return (transaction?.type ?? '').toUpperCase() === 'CREDIT';
   }
 
   getDisputeProgress(status?: string): number {
@@ -312,11 +391,54 @@ export class App implements OnInit {
     return ['Submitted', 'Open', 'Under review'];
   }
 
-  formatAmount(value: number | string): string {
+  getAvailableBalance(): number {
+    if (this.accountSummary) {
+      return Number(this.accountSummary.availableBalance ?? 0);
+    }
+
+    const firstTransaction = this.transactions[0];
+
+    if (!firstTransaction) {
+      return 0;
+    }
+
+    return Number(firstTransaction.accountBalance ?? 0);
+  }
+
+  getAccountBalance(): number {
+    if (this.accountSummary && this.accountSummary.balance != null) {
+      return Number(this.accountSummary.balance ?? 0);
+    }
+
+    const availableBalance = this.getAvailableBalance();
+    const pendingClearance = this.getPendingClearanceBalance();
+
+    return availableBalance + pendingClearance;
+  }
+
+  getPendingClearanceBalance(): number {
+    return this.transactions
+      .filter((transaction) => transaction.status?.toUpperCase() === 'PENDING')
+      .reduce((sum, transaction) => {
+        const numericValue = Number(transaction.amount ?? 0);
+        const signedValue = (transaction.type ?? '').toUpperCase() === 'DEBIT'
+          ? -Math.abs(numericValue)
+          : numericValue;
+        return sum + signedValue;
+      }, 0);
+  }
+
+  formatAmount(value: number | string, type?: string): string {
+    const numericValue = Number(value);
+    const isDebitTransaction = (type ?? '').toUpperCase() === 'DEBIT';
+    const signedValue = isDebitTransaction ? -Math.abs(numericValue) : numericValue;
+
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
       currency: 'ZAR',
-    }).format(Number(value));
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(signedValue);
   }
 
   formatDate(value?: string): string {

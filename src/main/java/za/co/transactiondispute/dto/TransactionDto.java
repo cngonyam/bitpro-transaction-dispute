@@ -17,6 +17,7 @@ public class TransactionDto {
     private Long id;
     private String transactionReference;
     private String accountNumber;
+    private BigDecimal accountBalance;
     private BigDecimal amount;
     private String currency;
     private TransactionType type;

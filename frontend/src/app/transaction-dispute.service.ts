@@ -6,6 +6,7 @@ export interface Transaction {
   id: number;
   transactionReference: string;
   accountNumber: string;
+  accountBalance?: number;
   amount: number;
   currency: string;
   type: string;
@@ -20,7 +21,11 @@ export interface DisputeCreateRequest {
   accountNumber: string;
   disputedAmount: number;
   reasonCode: string;
+  disputeType: 'CHARGEBACK';
   description: string;
+  provisionalCreditIssued?: boolean;
+  merchantEvidenceProvided?: boolean;
+  decisionOutcome?: string;
 }
 
 export interface Dispute {
@@ -30,8 +35,12 @@ export interface Dispute {
   accountNumber: string;
   disputedAmount: number;
   reasonCode: string;
+  disputeType?: 'CHARGEBACK';
   description?: string;
   assignedToFullName?: string;
+  provisionalCreditIssued?: boolean;
+  merchantEvidenceProvided?: boolean;
+  decisionOutcome?: string;
   status: string;
   createdAt?: string;
   updatedAt?: string;
@@ -40,6 +49,16 @@ export interface Dispute {
 export interface AuthResponse {
   token: string;
   username: string;
+}
+
+export interface AccountSummary {
+  id: number;
+  accountNumber: string;
+  customerName: string;
+  currency: string;
+  availableBalance: number;
+  balance?: number;
+  status: string;
 }
 
 export interface UserProfile {
@@ -104,6 +123,14 @@ export class TransactionDisputeService {
     );
   }
 
+  getAccounts(): Observable<AccountSummary[]> {
+    return this.requestWithRetry(
+      this.http.get<AccountSummary[]>(`${this.apiUrl}/accounts`, {
+        headers: this.getHeaders(),
+      }),
+    );
+  }
+
   createDispute(request: DisputeCreateRequest): Observable<Dispute> {
     return this.requestWithRetry(
       this.http.post<Dispute>(`${this.apiUrl}/disputes`, request, {
@@ -139,8 +166,8 @@ export class TransactionDisputeService {
   private requestWithRetry<T>(request$: Observable<T>): Observable<T> {
     return request$.pipe(
       retry({
-        count: 3,
-        delay: (error, retryIndex) => timer(1000 * (retryIndex + 1)),
+        count: 1,
+        delay: () => timer(200),
       }),
     );
   }

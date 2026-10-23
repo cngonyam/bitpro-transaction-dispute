@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import za.co.transactiondispute.config.LocalDateTimeAttributeConverter;
 import za.co.transactiondispute.enums.DisputeStatus;
+import za.co.transactiondispute.enums.DisputeType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,11 +39,24 @@ public class Dispute {
     @Column(nullable = false)
     private String reasonCode;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DisputeType disputeType;
+
     @Column(length = 1000)
     private String description;
 
     @Column(length = 255)
     private String assignedToFullName;
+
+    @Column
+    private Boolean provisionalCreditIssued;
+
+    @Column
+    private Boolean merchantEvidenceProvided;
+
+    @Column(length = 255)
+    private String decisionOutcome;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
