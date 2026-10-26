@@ -34,14 +34,21 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Value("${app.dev.username:dev-user}")
+    @Value("${app.security.username}")
     private String devUsername;
 
-    @Value("${app.dev.password:dev-pass123}")
+    @Value("${app.security.password}")
     private String devPassword;
 
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
+        if (devUsername == null || devUsername.isBlank()) {
+            throw new IllegalStateException("app.security.username must be configured for authentication.");
+        }
+        if (devPassword == null || devPassword.isBlank()) {
+            throw new IllegalStateException("app.security.password must be configured for authentication.");
+        }
+
         UserDetails user = User.withUsername(devUsername)
                 .password(passwordEncoder.encode(devPassword))
                 .roles("USER")

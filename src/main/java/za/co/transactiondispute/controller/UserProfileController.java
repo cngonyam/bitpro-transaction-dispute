@@ -2,6 +2,7 @@ package za.co.transactiondispute.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 import za.co.transactiondispute.dto.UserProfileDto;
 import za.co.transactiondispute.entity.UserProfile;
@@ -21,13 +22,13 @@ public class UserProfileController {
 
     @GetMapping("/profile")
     public ResponseEntity<UserProfileDto> getProfile(Principal principal) {
-        String username = principal != null ? principal.getName() : "dev-user";
+        String username = resolveAuthenticatedUsername(principal);
         return ResponseEntity.ok(toDto(userProfileService.getProfile(username)));
     }
 
     @PutMapping("/profile")
     public ResponseEntity<UserProfileDto> updateProfile(@Valid @RequestBody UserProfileDto profile, Principal principal) {
-        String username = principal != null ? principal.getName() : "dev-user";
+        String username = resolveAuthenticatedUsername(principal);
         UserProfile entity = UserProfile.builder()
                 .username(username)
                 .fullName(profile.getFullName())
@@ -38,6 +39,13 @@ public class UserProfileController {
                 .region(profile.getRegion())
                 .build();
         return ResponseEntity.ok(toDto(userProfileService.saveProfile(username, entity)));
+    }
+
+    private String resolveAuthenticatedUsername(Principal principal) {
+        if (principal == null || principal.getName() == null || principal.getName().isBlank()) {
+            throw new AccessDeniedException("Authentication is required to access the customer profile.");
+        }
+        return principal.getName();
     }
 
     private UserProfileDto toDto(UserProfile profile) {

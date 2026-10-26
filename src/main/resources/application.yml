@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   application:
     name: transaction-dispute-api
   datasource:
@@ -25,6 +25,10 @@ spring:
       roles: ADMIN
 
 app:
+  security:
+    username: dev-user
+    password: dev-pass123
+  account-mappings: dev-user=ACC-1001
   dev:
     username: dev-user
     password: dev-pass123
@@ -44,4 +48,3 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-

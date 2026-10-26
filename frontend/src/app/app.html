@@ -1,4 +1,47 @@
-﻿<div class="app-shell">
+﻿@if (!isLoggedIn) {
+  <div class="app-shell login-screen">
+    <div class="panel login-panel">
+      <div class="brand-block login-brand">
+        <div class="brand-mark">B</div>
+        <div>
+          <p class="eyebrow">Bitpro Holdings</p>
+          <h1>Dispute Operations Portal</h1>
+        </div>
+      </div>
+
+      <div class="login-header">
+        <h2>Secure sign in</h2>
+        <p>Use your Bitpro credentials to access the dispute dashboard.</p>
+      </div>
+
+      @if (errorMessage) {
+        <div class="notice error">{{ errorMessage }}</div>
+      }
+
+      <form class="login-form" (ngSubmit)="login()">
+        <label>
+          Username
+          <input type="text" [(ngModel)]="loginForm.username" name="loginUsername" placeholder="Enter username" required />
+        </label>
+
+        <label>
+          Password
+          <input type="password" [(ngModel)]="loginForm.password" name="loginPassword" placeholder="Enter password" required />
+        </label>
+
+        <div class="credential-hint">
+          <span>Demo account</span>
+          <strong>dev-user / dev-pass123</strong>
+        </div>
+
+        <button type="submit" class="primary-button" [disabled]="isLoggingIn">
+          {{ isLoggingIn ? 'Signing in...' : 'Sign in' }}
+        </button>
+      </form>
+    </div>
+  </div>
+} @else {
+<div class="app-shell">
   <header class="topbar">
       <div class="brand-block">
         <div class="brand-mark">B</div>
@@ -405,3 +448,4 @@
       }
     </main>
 </div>
+}

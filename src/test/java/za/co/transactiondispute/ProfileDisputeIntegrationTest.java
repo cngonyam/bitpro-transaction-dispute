@@ -3,6 +3,8 @@ package za.co.transactiondispute;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.entity.Transaction;
@@ -34,41 +36,48 @@ class ProfileDisputeIntegrationTest {
 
     @Test
     void shouldAttachCurrentProfileToNewDispute() {
-        UserProfile profile = UserProfile.builder()
-                .username("dev-user")
-                .fullName("Ndumiso Ngonyama")
-                .role("Dispute Operations Lead")
-                .email("ndumiso.ngonyama@bitpro.co.za")
-                .phone("+27 11 555 0123")
-                .department("Customer Operations")
-                .region("Johannesburg, South Africa")
-                .build();
+        try {
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken("dev-user", "dev-pass123"));
 
-        userProfileService.saveProfile("dev-user", profile);
+            UserProfile profile = UserProfile.builder()
+                    .username("dev-user")
+                    .fullName("Ndumiso Ngonyama")
+                    .role("Dispute Operations Lead")
+                    .email("ndumiso.ngonyama@bitpro.co.za")
+                    .phone("+27 11 555 0123")
+                    .department("Customer Operations")
+                    .region("Johannesburg, South Africa")
+                    .build();
 
-        transactionRepository.save(Transaction.builder()
-                .transactionReference("TXN-10001")
-                .accountNumber("ACC-1001")
-                .amount(new BigDecimal("99.00"))
-                .currency("ZAR")
-                .type(TransactionType.DEBIT)
-                .merchantName("Example Merchant")
-                .status("POSTED")
-                .transactionDate(LocalDateTime.now())
-                .description("Existing customer transaction")
-                .build());
+            userProfileService.saveProfile("dev-user", profile);
 
-        DisputeCreateRequest request = new DisputeCreateRequest();
-        request.setTransactionReference("TXN-10001");
-        request.setAccountNumber("ACC-1001");
-        request.setDisputedAmount(new BigDecimal("99.00"));
-        request.setReasonCode("MERCHANT_ERROR");
-        request.setDescription("Profile linked dispute");
-        request.setDisputeType(null);
+            transactionRepository.save(Transaction.builder()
+                    .transactionReference("TXN-10001")
+                    .accountNumber("ACC-1001")
+                    .amount(new BigDecimal("99.00"))
+                    .currency("ZAR")
+                    .type(TransactionType.DEBIT)
+                    .merchantName("Example Merchant")
+                    .status("POSTED")
+                    .transactionDate(LocalDateTime.now())
+                    .description("Existing customer transaction")
+                    .build());
 
-        var dispute = disputeService.createDispute(request);
+            DisputeCreateRequest request = new DisputeCreateRequest();
+            request.setTransactionReference("TXN-10001");
+            request.setAccountNumber("ACC-1001");
+            request.setDisputedAmount(new BigDecimal("99.00"));
+            request.setReasonCode("MERCHANT_ERROR");
+            request.setDescription("Profile linked dispute");
+            request.setDisputeType(null);
 
-        assertNotNull(dispute);
-        assertEquals("Ndumiso Ngonyama", dispute.getAssignedToFullName());
+            var dispute = disputeService.createDispute(request);
+
+            assertNotNull(dispute);
+            assertEquals("Ndumiso Ngonyama", dispute.getAssignedToFullName());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }
