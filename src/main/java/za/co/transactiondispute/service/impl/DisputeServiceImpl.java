@@ -31,7 +31,6 @@ import java.util.UUID;
 @Service
 public class DisputeServiceImpl implements DisputeService {
 
-    private static final String DEFAULT_USERNAME = "dev-user";
     private static final String DISPUTE_ID_PREFIX = "DSP-";
     private static final String FINALISED = "FINALISED";
     private static final String REVERSED = "REVERSED";
@@ -102,7 +101,10 @@ public class DisputeServiceImpl implements DisputeService {
 
         String username = SecurityContextHolder.getContext().getAuthentication() != null
                 ? SecurityContextHolder.getContext().getAuthentication().getName()
-                : DEFAULT_USERNAME;
+                : null;
+        if (username == null || username.isBlank()) {
+            throw new IllegalStateException("Authenticated user is required to create a dispute.");
+        }
         UserProfile assignedProfile = userProfileService.getProfile(username);
 
         BigDecimal disputedAmount = request.getDisputedAmount() == null ? BigDecimal.ZERO : request.getDisputedAmount().abs();
