@@ -25,9 +25,9 @@ class DataSeedTest {
     private DisputeRepository disputeRepository;
 
     @Test
-    void shouldSeedOnlyAccountsOnStartup() {
+    void shouldSeedAccountsAndDemoTransactionsOnStartup() {
         assertTrue(accountRepository.count() > 0);
-        assertFalse(transactionRepository.count() > 0);
+        assertTrue(transactionRepository.count() > 0);
         assertFalse(disputeRepository.count() > 0);
     }
 }

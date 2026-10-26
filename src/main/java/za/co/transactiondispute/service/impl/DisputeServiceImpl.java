@@ -97,6 +97,10 @@ public class DisputeServiceImpl implements DisputeService {
         UserProfile assignedProfile = userProfileService.getProfile(username);
 
         BigDecimal disputedAmount = request.getDisputedAmount() == null ? BigDecimal.ZERO : request.getDisputedAmount().abs();
+        BigDecimal transactionAmount = transaction.getAmount() == null ? BigDecimal.ZERO : transaction.getAmount().abs();
+        if (disputedAmount.compareTo(transactionAmount) > 0) {
+            throw new IllegalArgumentException("Disputed amount cannot exceed the original transaction amount.");
+        }
 
         DisputeStatus disputeStatus = DisputeStatus.OPEN;
         String decisionOutcome = request.getDecisionOutcome();
@@ -122,7 +126,7 @@ public class DisputeServiceImpl implements DisputeService {
 
         Dispute saved = disputeRepository.save(dispute);
         emailClient.sendEmail("customer@example.com", "Dispute Created", "Dispute " + saved.getDisputeId() + " has been created.");
-        smsClient.sendSms("+27123456789", "Dispute " + saved.getDisputeId() + " is under review");
+        smsClient.sendSms("+27832180551", "Dispute " + saved.getDisputeId() + " is under review");
 
         return saved;
     }
@@ -149,8 +153,16 @@ public class DisputeServiceImpl implements DisputeService {
         if (!originalTransaction.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
             throw new IllegalArgumentException("Customers can only reverse disputes for their own account.");
         }
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || "REVERSED".equalsIgnoreCase(dispute.getDecisionOutcome())) {
+            throw new IllegalArgumentException("This dispute has already been reversed and cannot be reversed again.");
+        }
 
         BigDecimal reversalAmount = dispute.getDisputedAmount() == null ? BigDecimal.ZERO : dispute.getDisputedAmount().abs();
+        BigDecimal transactionAmount = originalTransaction.getAmount() == null ? BigDecimal.ZERO : originalTransaction.getAmount().abs();
+        if (reversalAmount.compareTo(transactionAmount) > 0) {
+            throw new IllegalArgumentException("Reversal amount cannot exceed the original transaction amount.");
+        }
+
         Transaction reversalTransaction = Transaction.builder()
                 .transactionReference("REV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .accountNumber(originalTransaction.getAccountNumber())

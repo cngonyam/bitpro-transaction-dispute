@@ -53,6 +53,12 @@ public class TransactionServiceImpl implements TransactionService {
         if (transaction == null) {
             throw new IllegalArgumentException("Transaction payload is required");
         }
+        if (transaction.getType() == null) {
+            throw new IllegalArgumentException("Transaction type is required");
+        }
+        if (transaction.getType() == TransactionType.CREDIT) {
+            throw new IllegalArgumentException("Customers cannot create credit transactions.");
+        }
         if (!transaction.getAccountNumber().equalsIgnoreCase(customerAccountContext.getCurrentAccountNumber())) {
             throw new IllegalArgumentException("Customers can only access their own account transactions.");
         }
