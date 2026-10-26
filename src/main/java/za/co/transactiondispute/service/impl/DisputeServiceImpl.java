@@ -126,4 +126,58 @@ public class DisputeServiceImpl implements DisputeService {
 
         return saved;
     }
+
+    @Override
+    public Dispute reverseDispute(Long disputeId, String reasonCode) {
+        if (disputeId == null) {
+            throw new IllegalArgumentException("Dispute id is required");
+        }
+
+        String normalizedReason = reasonCode == null ? "" : reasonCode.trim();
+        if (normalizedReason.isEmpty()) {
+            throw new IllegalArgumentException("A reversal reason is required");
+        }
+
+        String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
+        Dispute dispute = disputeRepository.findById(disputeId)
+                .filter(item -> item.getAccountNumber().equalsIgnoreCase(currentAccountNumber))
+                .orElseThrow(() -> new ResourceNotFoundException("Dispute not found with id: " + disputeId));
+
+        Transaction originalTransaction = transactionRepository.findByTransactionReference(dispute.getTransactionReference())
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found with reference: " + dispute.getTransactionReference()));
+
+        if (!originalTransaction.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
+            throw new IllegalArgumentException("Customers can only reverse disputes for their own account.");
+        }
+
+        BigDecimal reversalAmount = dispute.getDisputedAmount() == null ? BigDecimal.ZERO : dispute.getDisputedAmount().abs();
+        Transaction reversalTransaction = Transaction.builder()
+                .transactionReference("REV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .accountNumber(originalTransaction.getAccountNumber())
+                .amount(reversalAmount)
+                .currency(originalTransaction.getCurrency())
+                .type(TransactionType.CREDIT)
+                .merchantName("Dispute reversal")
+                .status("FINALISED")
+                .transactionDate(LocalDateTime.now())
+                .description("Dispute reversal for " + originalTransaction.getTransactionReference() + " - " + normalizedReason)
+                .build();
+        transactionRepository.save(reversalTransaction);
+
+        originalTransaction.setStatus("REVERSED");
+        transactionRepository.save(originalTransaction);
+
+        dispute.setReasonCode(normalizedReason);
+        dispute.setDecisionOutcome("REVERSED");
+        dispute.setStatus(DisputeStatus.RESOLVED);
+        dispute.setUpdatedAt(LocalDateTime.now());
+        String currentDescription = dispute.getDescription() == null ? "" : dispute.getDescription();
+        dispute.setDescription((currentDescription + (currentDescription.isBlank() ? "" : " ") + "Reversed: " + normalizedReason).trim());
+
+        Dispute saved = disputeRepository.save(dispute);
+        emailClient.sendEmail("customer@example.com", "Dispute Reversed", "Dispute " + saved.getDisputeId() + " was reversed for reason: " + normalizedReason);
+        smsClient.sendSms("+27123456789", "Dispute " + saved.getDisputeId() + " has been resolved and reversed");
+
+        return saved;
+    }
 }

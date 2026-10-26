@@ -80,21 +80,32 @@ public class TransactionServiceImpl implements TransactionService {
             return;
         }
 
-        BigDecimal totalBalance = transactionRepository.findByAccountNumber(accountNumber).stream()
-                .filter(transaction -> transaction != null && transaction.getAmount() != null)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<Transaction> accountTransactions = transactionRepository.findByAccountNumber(accountNumber);
 
-        BigDecimal finalizedBalance = transactionRepository.findByAccountNumber(accountNumber).stream()
+        BigDecimal finalizedBalance = accountTransactions.stream()
                 .filter(transaction -> transaction != null
                         && transaction.getAmount() != null
                         && isBalanceImpactStatus(transaction.getStatus()))
-                .map(Transaction::getAmount)
+                .map(this::normalizeBalanceAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        account.setBalance(totalBalance);
-        account.setAvailableBalance(finalizedBalance);
+        BigDecimal availableBalance = accountTransactions.stream()
+                .filter(transaction -> transaction != null && transaction.getAmount() != null)
+                .map(this::normalizeBalanceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        account.setBalance(finalizedBalance);
+        account.setAvailableBalance(availableBalance);
         accountRepository.save(account);
+    }
+
+    private BigDecimal normalizeBalanceAmount(Transaction transaction) {
+        if (transaction == null || transaction.getAmount() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal magnitude = transaction.getAmount().abs();
+        return transaction.getType() == TransactionType.DEBIT ? magnitude.negate() : magnitude;
     }
 
     private String generateTransactionReference() {
@@ -113,8 +124,10 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         String normalized = status.trim().toUpperCase();
-        return "FINALISED".equals(normalized)
-                || "FINALIZED".equals(normalized);
+        return "RESOLVED".equals(normalized)
+                || "SETTLED".equals(normalized)
+                || "FINALIZED".equals(normalized)
+                || "FINALISED".equals(normalized);
     }
 
     private BigDecimal normalizeAmount(TransactionType type, BigDecimal amount) {

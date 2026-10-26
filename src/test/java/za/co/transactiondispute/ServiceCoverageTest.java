@@ -55,6 +55,68 @@ class ServiceCoverageTest {
     private DisputeRepository disputeRepository;
 
     @Test
+    void shouldOnlyCountResolvedSettledOrFinalizedTransactionsInBalance() {
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        Account account = Account.builder()
+                .accountNumber("ACC-1001")
+                .customerName("A")
+                .currency("ZAR")
+                .availableBalance(new BigDecimal("0.00"))
+                .balance(new BigDecimal("0.00"))
+                .status("ACTIVE")
+                .build();
+
+        Transaction resolvedCredit = Transaction.builder()
+                .id(1L)
+                .transactionReference("TX-20261001-EMPLOYER")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("12000.00"))
+                .currency("ZAR")
+                .type(TransactionType.CREDIT)
+                .merchantName("Employer Payroll")
+                .status("RESOLVED")
+                .transactionDate(LocalDateTime.now())
+                .description("Salary payment received")
+                .build();
+
+        Transaction pendingDebitOne = Transaction.builder()
+                .id(2L)
+                .transactionReference("TX-20261002-CARDPAY")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("1300.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Card payment")
+                .status("DEBIT")
+                .transactionDate(LocalDateTime.now())
+                .description("Card payment")
+                .build();
+
+        Transaction pendingDebitTwo = Transaction.builder()
+                .id(3L)
+                .transactionReference("TX-20261003-DEBITORDER")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("1200.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Debit Order")
+                .status("DEBIT")
+                .transactionDate(LocalDateTime.now())
+                .description("Debit order received")
+                .build();
+
+        when(accountRepository.findAll()).thenReturn(List.of(account));
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(resolvedCredit, pendingDebitOne, pendingDebitTwo));
+
+        List<Account> accounts = accountService.getAllAccounts();
+
+        assertEquals(1, accounts.size());
+        assertEquals(new BigDecimal("12000.00"), accounts.get(0).getBalance());
+        assertEquals(new BigDecimal("9500.00"), accounts.get(0).getAvailableBalance());
+    }
+
+    @Test
     void shouldCoverValidatorsServicesAndControllers() {
         AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
         Account account = Account.builder()
@@ -133,10 +195,11 @@ class ServiceCoverageTest {
         assertTrue(savedAutoReferenceTransaction.getTransactionReference().startsWith("TX-"));
 
         tx.setTransactionReference("TX-1");
+        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx, autoReferenceTransaction));
         assertEquals(tx, transactionService.createTransaction(tx));
-        assertEquals(new BigDecimal("25.00"), account.getAvailableBalance());
-        assertEquals(new BigDecimal("-75.00"), account.getBalance());
-        assertEquals(new BigDecimal("50.00"), account.getBalance().abs().subtract(account.getAvailableBalance().abs()));
+        assertEquals(new BigDecimal("-50.00"), account.getAvailableBalance());
+        assertEquals(new BigDecimal("25.00"), account.getBalance());
+        assertEquals(new BigDecimal("75.00"), account.getAvailableBalance().subtract(account.getBalance()));
 
         assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(null));
         assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(Transaction.builder().accountNumber("ACC-999").build()));
@@ -356,5 +419,119 @@ class ServiceCoverageTest {
         assertEquals("DSP-ABC123", disputeController.getDispute(1L).getBody().getDisputeId());
         ResponseEntity<za.co.transactiondispute.dto.DisputeResponse> createdDispute = disputeController.createDispute(validRequest);
         assertNotNull(createdDispute.getBody().getDisputeId());
+    }
+
+    @Test
+    void shouldNormalizeDebitAmountsWhenReconcilingBalance() {
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        Account account = Account.builder()
+                .accountNumber("ACC-1001")
+                .customerName("Jane Smith")
+                .currency("ZAR")
+                .availableBalance(BigDecimal.ZERO)
+                .balance(BigDecimal.ZERO)
+                .status("ACTIVE")
+                .build();
+
+        when(accountRepository.findAll()).thenReturn(List.of(account));
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("12000.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.CREDIT)
+                        .merchantName("Employer Payroll")
+                        .status("FINALISED")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Salary")
+                        .build(),
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("1300.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.DEBIT)
+                        .merchantName("Card payment")
+                        .status("FINALISED")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Card")
+                        .build(),
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("1200.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.DEBIT)
+                        .merchantName("Debit order")
+                        .status("FINALISED")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Order")
+                        .build()
+        ));
+
+        Account reconciled = accountService.getAllAccounts().get(0);
+        assertEquals(new BigDecimal("9500.00"), reconciled.getBalance());
+        assertEquals(new BigDecimal("9500.00"), reconciled.getAvailableBalance());
+    }
+
+    @Test
+    void shouldExcludePendingAmountsFromBalance() {
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        Account account = Account.builder()
+                .accountNumber("ACC-1001")
+                .customerName("Jane Smith")
+                .currency("ZAR")
+                .availableBalance(BigDecimal.ZERO)
+                .balance(BigDecimal.ZERO)
+                .status("ACTIVE")
+                .build();
+
+        when(accountRepository.findAll()).thenReturn(List.of(account));
+        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("12000.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.CREDIT)
+                        .merchantName("Employer Payroll")
+                        .status("FINALISED")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Salary")
+                        .build(),
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("1300.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.DEBIT)
+                        .merchantName("Card payment")
+                        .status("RESOLVED")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Card")
+                        .build(),
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("1200.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.DEBIT)
+                        .merchantName("Debit order")
+                        .status("SETTLED")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Order")
+                        .build(),
+                Transaction.builder()
+                        .accountNumber("ACC-1001")
+                        .amount(new BigDecimal("500.00"))
+                        .currency("ZAR")
+                        .type(TransactionType.CREDIT)
+                        .merchantName("Pending refund")
+                        .status("PENDING")
+                        .transactionDate(LocalDateTime.now())
+                        .description("Pending")
+                        .build()
+        ));
+
+        Account reconciled = accountService.getAllAccounts().get(0);
+        assertEquals(new BigDecimal("9500.00"), reconciled.getBalance());
+        assertEquals(new BigDecimal("10000.00"), reconciled.getAvailableBalance());
     }
 }

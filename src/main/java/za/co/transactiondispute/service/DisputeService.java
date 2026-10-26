@@ -10,4 +10,5 @@ public interface DisputeService {
     List<Dispute> getAllDisputes();
     Optional<Dispute> getDisputeById(Long id);
     Dispute createDispute(DisputeCreateRequest request);
+    Dispute reverseDispute(Long disputeId, String reasonCode);
 }
