@@ -1,13 +1,20 @@
 package za.co.transactiondispute.controller;
 
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.dto.DisputeResponse;
 import za.co.transactiondispute.dto.ReverseDisputeRequest;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.service.DisputeService;
 
+import java.net.URI;
 import java.util.List;
 
 @RestController
@@ -21,10 +28,11 @@ public class DisputeController {
     }
 
     @GetMapping("/disputes")
-    public List<DisputeResponse> getDisputes() {
-        return disputeService.getAllDisputes().stream()
+    public Page<DisputeResponse> getDisputes(@PageableDefault(size = 20, sort = "id") Pageable pageable) {
+        List<DisputeResponse> disputes = disputeService.getAllDisputes().stream()
                 .map(this::toResponse)
                 .toList();
+        return pageFromList(disputes, pageable);
     }
 
     @GetMapping("/disputes/{id}")
@@ -33,9 +41,18 @@ public class DisputeController {
     }
 
     @PostMapping("/disputes")
-    public ResponseEntity<DisputeResponse> createDispute(@RequestBody DisputeCreateRequest request) {
+    public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request) {
         Dispute dispute = disputeService.createDispute(request);
-        return ResponseEntity.ok(toResponse(dispute));
+        URI location;
+        try {
+            location = ServletUriComponentsBuilder.fromCurrentRequest()
+                    .path("/{id}")
+                    .buildAndExpand(dispute.getId())
+                    .toUri();
+        } catch (IllegalStateException ex) {
+            location = URI.create("/api/v1/disputes/" + dispute.getId());
+        }
+        return ResponseEntity.created(location).body(toResponse(dispute));
     }
 
     @PostMapping("/disputes/{id}/reverse")
@@ -63,5 +80,16 @@ public class DisputeController {
                 .createdAt(dispute.getCreatedAt())
                 .updatedAt(dispute.getUpdatedAt())
                 .build();
+    }
+
+    private Page<DisputeResponse> pageFromList(List<DisputeResponse> content, Pageable pageable) {
+        if (pageable.isUnpaged()) {
+            return new PageImpl<>(content, Pageable.unpaged(), content.size());
+        }
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), content.size());
+        List<DisputeResponse> pageContent = (start >= content.size()) ? List.of() : content.subList(start, end);
+        return new PageImpl<>(pageContent, pageable, content.size());
     }
 }

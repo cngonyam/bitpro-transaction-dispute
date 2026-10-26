@@ -12,8 +12,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -63,5 +66,50 @@ class AuthSecurityTest {
         mockMvc.perform(get("/api/v1/transactions")
                         .header("Authorization", "Bearer " + jwt))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void listTransactionsSupportsPagination() throws Exception {
+        String jwt = loginAndGetJwt();
+
+        mockMvc.perform(get("/api/v1/transactions")
+                        .header("Authorization", "Bearer " + jwt)
+                        .param("page", "0")
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.pageable.pageNumber").value(0));
+    }
+
+    @Test
+    void creatingAccountReturnsCreatedAndValidatesPayload() throws Exception {
+        String jwt = loginAndGetJwt();
+
+        mockMvc.perform(post("/api/v1/accounts")
+                        .header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"accountNumber\":\"ACC-9999\",\"customerName\":\"Test Customer\",\"currency\":\"ZAR\",\"availableBalance\":100,\"balance\":100,\"status\":\"ACTIVE\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.accountNumber").value("ACC-9999"))
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(header().string("Location", containsString("/api/v1/accounts/")));
+
+        mockMvc.perform(post("/api/v1/accounts")
+                        .header("Authorization", "Bearer " + jwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"customerName\":\"Missing required fields\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private String loginAndGetJwt() throws Exception {
+        String token = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"dev-user\",\"password\":\"dev-pass123\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(token).get("token").asText();
     }
 }
