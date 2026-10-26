@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.controller.AccountController;
@@ -453,7 +455,8 @@ class ServiceCoverageTest {
         when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx, autoReferenceTransaction));
         tx.setTransactionReference("TX-1");
         TransactionController transactionController = new TransactionController(transactionService, new TransactionMapper(), accountRepository);
-        assertEquals(2, transactionController.getTransactions().size());
+        Page<za.co.transactiondispute.dto.TransactionDto> transactionsPage = transactionController.getTransactions(Pageable.unpaged());
+        assertEquals(2, transactionsPage.getContent().size());
         assertEquals("TX-1", transactionController.getTransaction("TX-1").getBody().getTransactionReference());
         assertNotNull(transactionController.getTransaction("TX-1").getBody());
         ResponseEntity<za.co.transactiondispute.dto.TransactionDto> newTransaction = transactionController.createTransaction(
@@ -462,7 +465,8 @@ class ServiceCoverageTest {
         assertTrue(newTransaction.getBody().getTransactionReference().startsWith("TX-"));
 
         AccountController accountController = new AccountController(accountService);
-        assertEquals(1, accountController.getAccounts().size());
+        Page<AccountDto> accountsPage = accountController.getAccounts(Pageable.unpaged());
+        assertEquals(1, accountsPage.getContent().size());
         assertEquals("ACC-1001", accountController.getAccount(1L).getBody().getAccountNumber());
         AccountDto accountDto = AccountDto.builder()
                 .accountNumber("ACC-2000")
@@ -471,11 +475,12 @@ class ServiceCoverageTest {
                 .availableBalance(new BigDecimal("10.00"))
                 .status("ACTIVE")
                 .build();
-        ResponseEntity<Account> createdAccount = accountController.createAccount(accountDto);
+        ResponseEntity<AccountDto> createdAccount = accountController.createAccount(accountDto);
         assertEquals("ACC-2000", createdAccount.getBody().getAccountNumber());
 
         DisputeController disputeController = new DisputeController(disputeService);
-        assertEquals(1, disputeController.getDisputes().size());
+        Page<za.co.transactiondispute.dto.DisputeResponse> disputesPage = disputeController.getDisputes(Pageable.unpaged());
+        assertEquals(1, disputesPage.getContent().size());
         assertEquals("DSP-ABC123", disputeController.getDispute(1L).getBody().getDisputeId());
         ResponseEntity<za.co.transactiondispute.dto.DisputeResponse> createdDispute = disputeController.createDispute(validRequest);
         assertNotNull(createdDispute.getBody().getDisputeId());
