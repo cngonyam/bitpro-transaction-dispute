@@ -12,4 +12,5 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     Optional<Dispute> findByDisputeId(String disputeId);
     List<Dispute> findByAccountNumber(String accountNumber);
     Optional<Dispute> findByTransactionReference(String transactionReference);
+    List<Dispute> findAllByTransactionReference(String transactionReference);
 }

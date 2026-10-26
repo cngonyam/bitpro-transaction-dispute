@@ -61,7 +61,7 @@ public class DisputeController {
             return ResponseEntity.ok(cached);
         }
 
-        Dispute dispute = disputeService.createDispute(request);
+        Dispute dispute = disputeService.createDispute(request, resolvedKey);
         DisputeResponse response = toResponse(dispute);
         DisputeResponse previous = createIdempotencyCache.putIfAbsent(cacheKey, response);
         if (previous != null) {
@@ -96,7 +96,7 @@ public class DisputeController {
         }
 
         String reasonCode = request != null ? request.getReasonCode() : null;
-        Dispute dispute = disputeService.reverseDispute(id, reasonCode);
+        Dispute dispute = disputeService.reverseDispute(id, reasonCode, resolvedKey);
         DisputeResponse response = toResponse(dispute);
         DisputeResponse previous = reverseIdempotencyCache.putIfAbsent(cacheKey, response);
         if (previous != null) {

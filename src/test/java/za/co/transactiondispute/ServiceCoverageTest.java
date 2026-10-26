@@ -366,6 +366,105 @@ class ServiceCoverageTest {
     }
 
     @Test
+    void shouldRejectInvalidTransitionWhenReversingRejectedDispute() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, mock(UserProfileService.class));
+
+        Dispute dispute = Dispute.builder()
+                .id(1L)
+                .disputeId("DSP-100")
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.REJECTED)
+                .decisionOutcome("REJECTED")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(Transaction.builder()
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("50.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Shop")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("test")
+                .build()));
+
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "duplicate transaction", "repeat-key-1"));
+    }
+
+    @Test
+    void shouldReturnExistingDisputeForRepeatedCreateWithSameIdempotencyKey() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("dev-user")).thenReturn(UserProfile.builder()
+                .username("dev-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .email("ndumiso.ngonyama@bitpro.co.za")
+                .phone("+27 11 555 0123")
+                .department("Customer Operations")
+                .region("Johannesburg, South Africa")
+                .build());
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("dev-user", "pw"));
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-99");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("15.00"));
+        request.setReasonCode("MERCHANT_ERROR");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+        request.setDescription("duplicate key test");
+
+        Transaction originalTransaction = Transaction.builder()
+                .transactionReference("TX-99")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("40.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Merchant")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("Original")
+                .build();
+
+        Dispute existing = Dispute.builder()
+                .id(77L)
+                .disputeId("DSP-77")
+                .transactionReference("TX-99")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("15.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("duplicate key test")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(transactionRepository.findByTransactionReference("TX-99")).thenReturn(Optional.of(originalTransaction));
+        when(disputeRepository.findByTransactionReference("TX-99")).thenReturn(Optional.empty());
+        when(disputeRepository.save(any(Dispute.class))).thenReturn(existing);
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+
+        Dispute first = disputeService.createDispute(request, "idempotent-key-99");
+        Dispute second = disputeService.createDispute(request, "idempotent-key-99");
+
+        assertSame(first, second);
+        verify(disputeRepository, times(1)).save(any(Dispute.class));
+    }
+
+    @Test
     void shouldRejectDuplicateDisputeCreateRequestWithSameIdempotencyKey() {
         DisputeService disputeService = mock(DisputeService.class);
         DisputeController controller = new DisputeController(disputeService);
@@ -392,18 +491,18 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeService.createDispute(request)).thenReturn(dispute);
+        when(disputeService.createDispute(request, "abc-123")).thenReturn(dispute);
 
         ResponseEntity<DisputeResponse> first = controller.createDispute(request, "abc-123");
         ResponseEntity<DisputeResponse> second = controller.createDispute(request, "abc-123");
 
         assertEquals(201, first.getStatusCode().value());
         assertEquals(200, second.getStatusCode().value());
-        verify(disputeService, times(1)).createDispute(request);
+        verify(disputeService, times(1)).createDispute(request, "abc-123");
     }
 
     @Test
-    void shouldResolveDisputeWithoutCreatingAdditionalCreditTransaction() {
+    void shouldCreateLedgerCreditWhenDisputeIsReversed() {
         CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, mock(UserProfileService.class));
 
@@ -434,9 +533,20 @@ class ServiceCoverageTest {
                 .description("original")
                 .build();
 
+        Account account = Account.builder()
+                .accountNumber("ACC-1001")
+                .customerName("Customer")
+                .currency("ZAR")
+                .availableBalance(new BigDecimal("100.00"))
+                .balance(new BigDecimal("100.00"))
+                .status("ACTIVE")
+                .build();
+
         when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(original));
+        when(accountRepository.findByAccountNumber("ACC-1001")).thenReturn(Optional.of(account));
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Dispute reversed = disputeService.reverseDispute(1L, "duplicate transaction");
 
@@ -444,7 +554,11 @@ class ServiceCoverageTest {
         assertEquals("REVERSED", reversed.getDecisionOutcome());
         assertTrue(reversed.getDescription().contains("duplicate transaction"));
         assertEquals("POSTED", original.getStatus());
-        verify(transactionRepository, never()).save(any(Transaction.class));
+        verify(transactionRepository).save(argThat(transaction ->
+                TransactionType.CREDIT.equals(transaction.getType())
+                        && "ACC-1001".equals(transaction.getAccountNumber())
+                        && new BigDecimal("25.00").compareTo(transaction.getAmount()) == 0
+                        && "RESOLVED".equals(transaction.getStatus())));
         verify(disputeRepository).save(dispute);
     }
 
