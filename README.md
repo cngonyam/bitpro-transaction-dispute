@@ -1,16 +1,29 @@
 # Bitpro Transaction Dispute Portal
 
-A full-stack dispute management app for Bitpro Holdings, built with a Spring Boot API and Angular frontend.
+A full-stack dispute management portal for Bitpro, built with a Spring Boot API and Angular frontend. The backend uses SQLite and Liquibase for local persistence, and the dispute flow is aligned to a real money-movement workflow rather than a state-only mock.
 
 ## Overview
 
-This project lets users:
+The portal supports:
 
-- review recent transactions
-- raise a dispute against a transaction
-- capture the disputed amount, reason, and description
-- track dispute status through the application workflow
-- run locally with SQLite and seeded demo data
+- reviewing the current customer account and transaction history
+- submitting a dispute for a transaction
+- tracking dispute lifecycle states through review and resolution
+- reversing a dispute with an idempotency key
+- creating a real credit ledger entry when a dispute is reversed
+- recalculating account balances after each relevant ledger change
+
+## Business behavior
+
+This application is intentionally modeled as a ledger-aware dispute workflow:
+
+- a dispute is created for a specific transaction and account
+- a reversal is only allowed for valid dispute states
+- reversing a dispute creates a dedicated credit transaction entry
+- the affected account balances are recalculated from the full transaction ledger
+- duplicate requests are protected with idempotency keys
+
+This is a meaningful improvement over simplistic “status-only” dispute reversal, which would not reflect actual financial movement.
 
 ## Tech stack
 
@@ -19,7 +32,7 @@ This project lets users:
 - Spring Boot 3.3.x
 - Spring Web
 - Spring Data JPA
-- Spring Security
+- Spring Security + JWT
 - SQLite with Liquibase migrations
 - Swagger / OpenAPI
 - Spring Boot Actuator
@@ -44,9 +57,12 @@ bitpro-transaction-dispute/
 │  ├─ package.json
 │  └─ tsconfig.json
 ├─ pom.xml
+├─ docker-compose.yml
+├─ Dockerfile
 ├─ transaction-dispute.db
 ├─ README.md
-└─ target/
+├─ target/
+└─ frontend/Dockerfile
 ```
 
 ## Quick start
@@ -62,13 +78,26 @@ bitpro-transaction-dispute/
 From the project root:
 
 ```bash
-mvn clean install
+mvn spring-boot:run
+```
+
+For a fresh local DB rebuild, remove the SQLite file before starting:
+
+```bash
+rm transaction-dispute.db
+mvn spring-boot:run
+```
+
+On Windows PowerShell:
+
+```powershell
+Remove-Item transaction-dispute.db -Force
 mvn spring-boot:run
 ```
 
 The API will be available at:
 
-- `http://localhost:8082`
+- Backend: `http://localhost:8082`
 - Health check: `http://localhost:8082/actuator/health`
 - Swagger UI: `http://localhost:8082/swagger-ui.html`
 
@@ -97,7 +126,7 @@ npm run build
 
 ## Docker deployment
 
-This is the recommended way to run the full app in a single stack.
+The repository also supports a container-based local stack.
 
 ### Build and run with Docker Compose
 
@@ -107,15 +136,13 @@ From the project root:
 docker compose up --build -d
 ```
 
-The app will be available at:
+The app is exposed as:
 
 - Frontend: `http://localhost:8080`
 - Backend: `http://localhost:8082`
 - Swagger UI: `http://localhost:8082/swagger-ui.html`
 
-The frontend uses a reverse proxy so browser requests are sent to `/api`, which is forwarded to the backend container.
-
-To stop the containers:
+To stop the stack:
 
 ```bash
 docker compose down
@@ -124,9 +151,9 @@ docker compose down
 ### Docker files included
 
 - `Dockerfile` for the backend
-- `docker-compose.yml` for running both services
+- `docker-compose.yml` for orchestration
 - `frontend/Dockerfile` for the Angular app
-- `frontend/nginx.conf` for reverse proxying `/api` to the backend
+- `frontend/nginx.conf` for reverse proxying frontend requests to the backend
 
 ## Local credentials
 
@@ -135,7 +162,7 @@ The app is seeded with a local demo user:
 - Username: `dev-user`
 - Password: `dev-pass123`
 
-The frontend automatically authenticates with these values when it starts.
+The frontend uses these credentials for login during local testing.
 
 ## API endpoints
 
@@ -145,27 +172,35 @@ Base URL for direct backend access:
 http://localhost:8082/api/v1
 ```
 
-When running via Docker, the frontend is served from `http://localhost:8080` and proxies `/api` to the backend container.
-
 Key endpoints:
 
+- `POST /auth/login`
+- `GET /profile`
+- `GET /accounts`
+- `GET /accounts/{id}`
+- `POST /accounts`
 - `GET /transactions`
 - `GET /transactions/{reference}`
 - `POST /transactions`
 - `GET /disputes`
 - `GET /disputes/{id}`
 - `POST /disputes`
+- `POST /disputes/{id}/reverse`
 - `GET /actuator/health`
+
+### Idempotency
+
+Create and reverse dispute requests support an `X-Idempotency-Key` header. This prevents accidental duplicate execution of a financial action.
 
 ## Database
 
-The local database is stored at the project root:
+The local SQLite database lives at the project root:
 
 ```text
 transaction-dispute.db
 ```
 
-You can inspect it directly with SQLite:
+You can inspect the data directly with SQLite:
 
 ```bash
 sqlite3 transaction-dispute.db "SELECT * FROM accounts;"
@@ -187,9 +222,9 @@ Schema and seed data are managed via Liquibase under:
 src/main/resources/db/changelog/
 ```
 
-## Using Liquibase to update the database
+## Liquibase and clean reset
 
-This project does not use a separate Liquibase CLI plugin. The standard workflow is:
+This project uses Liquibase for schema evolution. The standard workflow is:
 
 1. Add a new changeSet to the master changelog file:
 
@@ -197,35 +232,17 @@ This project does not use a separate Liquibase CLI plugin. The standard workflow
 src/main/resources/db/changelog/db.changelog-master.yaml
 ```
 
-2. Use a unique, incremental changeSet id such as `008-add-new-column`.
+2. Use a unique incremental changeSet id.
 
-3. Restart the backend so Spring Boot applies the pending Liquibase changes automatically.
+3. Restart the backend so Spring Boot applies the pending migration.
 
 ```bash
 mvn spring-boot:run
 ```
 
-Example changeSet:
+### Clean reset
 
-```yaml
-databaseChangeLog:
-  - changeSet:
-      id: 008-add-email-to-accounts
-      author: Ndumiso Ngonyama
-      changes:
-        - addColumn:
-            tableName: accounts
-            columns:
-              - column:
-                  name: email
-                  type: VARCHAR(255)
-                  constraints:
-                    nullable: true
-```
-
-### When you need a clean reset
-
-If the SQLite file is stale or a migration has already been applied in a bad state:
+If the database is stale or the schema needs to be rebuilt from scratch:
 
 ```bash
 rm transaction-dispute.db
@@ -235,21 +252,22 @@ mvn spring-boot:run
 On Windows PowerShell:
 
 ```powershell
-Remove-Item transaction-dispute.db
+Remove-Item transaction-dispute.db -Force
 mvn spring-boot:run
 ```
 
 This forces Liquibase to rebuild the schema from the changelog files.
 
-### Liquibase rules
+## Important rules and expectations
 
-- Add each schema change as a new `changeSet`.
-- Never reuse an existing `id`.
-- Keep migrations small and versioned.
-- Restart the app after changing the changelog so Liquibase can apply the update.
+- Every dispute reversal creates a concrete ledger credit transaction.
+- Account balances are recalculated from actual transaction records.
+- Dispute states are validated before transition.
+- Only the current customer account is accessible for a signed-in user.
+- The app is meant for local/demo validation and is not a complete production banking implementation.
 
 ## Notes
 
 - The backend must be running before the frontend can load data.
-- This is intended for local/demo use rather than a production banking platform.
 - Port conflicts can be resolved by stopping the old Java or Node process before restarting the application.
+- The app was validated from a clean DB state with the backend health endpoint reporting `UP` and login succeeding for the seeded demo user.
