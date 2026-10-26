@@ -193,6 +193,53 @@ class ServiceCoverageTest {
     }
 
     @Test
+    void shouldRejectDuplicateDisputeForSameTransaction() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+
+        Transaction originalTransaction = Transaction.builder()
+                .transactionReference("TX-21")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("100.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Merchant")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("Original")
+                .build();
+
+        when(transactionRepository.findByTransactionReference("TX-21")).thenReturn(Optional.of(originalTransaction));
+        when(disputeRepository.findByTransactionReference("TX-21")).thenReturn(Optional.of(Dispute.builder()
+                .id(11L)
+                .disputeId("DSP-11")
+                .transactionReference("TX-21")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("10.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("First dispute")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build()));
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("dev-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-21");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("10.00"));
+        request.setReasonCode("MERCHANT_ERROR");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+        request.setDescription("Second dispute");
+
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+    }
+
+    @Test
     void shouldRejectDisputeForOtherAccount() {
         DisputeValidator validator = new DisputeValidator();
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, validator, mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
@@ -356,7 +403,7 @@ class ServiceCoverageTest {
     }
 
     @Test
-    void shouldReverseValidDisputeAndCreateCreditReversal() {
+    void shouldResolveDisputeWithoutCreatingAdditionalCreditTransaction() {
         CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, mock(UserProfileService.class));
 
@@ -389,7 +436,6 @@ class ServiceCoverageTest {
 
         when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(original));
-        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Dispute reversed = disputeService.reverseDispute(1L, "duplicate transaction");
@@ -397,8 +443,8 @@ class ServiceCoverageTest {
         assertEquals(DisputeStatus.RESOLVED, reversed.getStatus());
         assertEquals("REVERSED", reversed.getDecisionOutcome());
         assertTrue(reversed.getDescription().contains("duplicate transaction"));
-        assertEquals("REVERSED", original.getStatus());
-        verify(transactionRepository, atLeastOnce()).save(any(Transaction.class));
+        assertEquals("POSTED", original.getStatus());
+        verify(transactionRepository, never()).save(any(Transaction.class));
         verify(disputeRepository).save(dispute);
     }
 

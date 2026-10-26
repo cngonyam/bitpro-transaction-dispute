@@ -2,9 +2,9 @@
   application:
     name: transaction-dispute-api
   datasource:
-    url: jdbc:sqlite:transaction-dispute.db
-    username: ""
-    password: ""
+    url: jdbc:sqlite:${APP_DB_PATH:transaction-dispute.db}
+    username: ${APP_DB_USERNAME:}
+    password: ${APP_DB_PASSWORD:}
     driver-class-name: org.sqlite.JDBC
   jpa:
     hibernate:
@@ -17,25 +17,16 @@
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
-    drop-first: true
-  security:
-    user:
-      name: dev-user
-      password: dev-pass123
-      roles: ADMIN
+    drop-first: false
 
 app:
   security:
-    username: dev-user
-    password: dev-pass123
-  account-mappings: dev-user=ACC-1001
-  dev:
-    username: dev-user
-    password: dev-pass123
-    account-number: ACC-1001
+    username: ${APP_SECURITY_USERNAME:}
+    password: ${APP_SECURITY_PASSWORD:}
+  account-mappings: ${APP_ACCOUNT_MAPPINGS:}
 
 server:
-  port: 8082
+  port: ${SERVER_PORT:8082}
 
 management:
   endpoints:

@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     Optional<Dispute> findByDisputeId(String disputeId);
     List<Dispute> findByAccountNumber(String accountNumber);
+    Optional<Dispute> findByTransactionReference(String transactionReference);
 }

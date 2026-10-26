@@ -99,6 +99,12 @@ public class DisputeServiceImpl implements DisputeService {
             throw new IllegalArgumentException("Customers can only dispute transactions on their own account.");
         }
 
+        disputeRepository.findByTransactionReference(request.getTransactionReference())
+                .filter(existing -> existing.getAccountNumber().equalsIgnoreCase(currentAccountNumber))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("A dispute already exists for transaction: " + request.getTransactionReference());
+                });
+
         String username = SecurityContextHolder.getContext().getAuthentication() != null
                 ? SecurityContextHolder.getContext().getAuthentication().getName()
                 : null;
@@ -168,6 +174,9 @@ public class DisputeServiceImpl implements DisputeService {
         if (isReversalAlreadyApplied(dispute)) {
             return dispute;
         }
+        if (dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new IllegalArgumentException("Rejected disputes cannot be reversed.");
+        }
 
         BigDecimal reversalAmount = dispute.getDisputedAmount() == null ? BigDecimal.ZERO : dispute.getDisputedAmount().abs();
         BigDecimal transactionAmount = originalTransaction.getAmount() == null ? BigDecimal.ZERO : originalTransaction.getAmount().abs();
@@ -175,22 +184,9 @@ public class DisputeServiceImpl implements DisputeService {
             throw new IllegalArgumentException("Reversal amount cannot exceed the original transaction amount.");
         }
 
-        Transaction reversalTransaction = Transaction.builder()
-                .transactionReference("REV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
-                .accountNumber(originalTransaction.getAccountNumber())
-                .amount(reversalAmount)
-                .currency(originalTransaction.getCurrency())
-                .type(TransactionType.CREDIT)
-                .merchantName("Dispute reversal")
-                .status(FINALISED)
-                .transactionDate(LocalDateTime.now())
-                .description("Dispute reversal for " + originalTransaction.getTransactionReference() + " - " + normalizedReason)
-                .build();
-        transactionRepository.save(reversalTransaction);
-
-        originalTransaction.setStatus(REVERSED);
-        transactionRepository.save(originalTransaction);
-
+        // Keep dispute resolution as a state transition only. This application does not
+        // create a separate credit transaction here because that would allow money to be
+        // inserted into the customer ledger during a reversal flow.
         dispute.setReasonCode(normalizedReason);
         dispute.setDecisionOutcome(REVERSED);
         dispute.setStatus(DisputeStatus.RESOLVED);
