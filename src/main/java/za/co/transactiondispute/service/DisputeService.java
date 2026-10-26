@@ -10,5 +10,7 @@ public interface DisputeService {
     List<Dispute> getAllDisputes();
     Optional<Dispute> getDisputeById(Long id);
     Dispute createDispute(DisputeCreateRequest request);
+    Dispute createDispute(DisputeCreateRequest request, String idempotencyKey);
     Dispute reverseDispute(Long disputeId, String reasonCode);
+    Dispute reverseDispute(Long disputeId, String reasonCode, String idempotencyKey);
 }
