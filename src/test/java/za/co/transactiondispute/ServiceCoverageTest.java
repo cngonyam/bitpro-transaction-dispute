@@ -58,7 +58,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldOnlyCountResolvedSettledOrFinalizedTransactionsInBalance() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
         Account account = Account.builder()
                 .accountNumber("ACC-1001")
                 .customerName("A")
@@ -119,7 +119,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldNotPersistBalanceReconciliationDuringReadOperations() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
         Account account = Account.builder()
                 .accountNumber("ACC-1001")
                 .customerName("A")
@@ -143,7 +143,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldCoverValidatorsServicesAndControllers() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
         Account account = Account.builder()
                 .accountNumber("ACC-1001")
                 .customerName("A")
@@ -454,7 +454,7 @@ class ServiceCoverageTest {
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(tx));
         when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx, autoReferenceTransaction));
         tx.setTransactionReference("TX-1");
-        TransactionController transactionController = new TransactionController(transactionService, new TransactionMapper(), accountRepository);
+        TransactionController transactionController = new TransactionController(transactionService, new TransactionMapper(), accountService);
         Page<za.co.transactiondispute.dto.TransactionDto> transactionsPage = transactionController.getTransactions(Pageable.unpaged());
         assertEquals(2, transactionsPage.getContent().size());
         assertEquals("TX-1", transactionController.getTransaction("TX-1").getBody().getTransactionReference());
@@ -488,7 +488,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldNormalizeDebitAmountsWhenReconcilingBalance() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
         Account account = Account.builder()
                 .accountNumber("ACC-1001")
                 .customerName("Jane Smith")
@@ -539,7 +539,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldExcludePendingAmountsFromBalance() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository);
+        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
         Account account = Account.builder()
                 .accountNumber("ACC-1001")
                 .customerName("Jane Smith")

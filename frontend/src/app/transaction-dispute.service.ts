@@ -76,6 +76,10 @@ export interface UserProfile {
   region: string;
 }
 
+interface PageResponse<T> {
+  content?: T[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class TransactionDisputeService {
   private readonly apiUrl = '/api/v1';
@@ -114,17 +118,21 @@ export class TransactionDisputeService {
 
   getTransactions(): Observable<Transaction[]> {
     return this.requestWithRetry(
-      this.http.get<Transaction[]>(`${this.apiUrl}/transactions`, {
-        headers: this.getHeaders(),
-      }),
+      this.http
+        .get<PageResponse<Transaction>>(`${this.apiUrl}/transactions`, {
+          headers: this.getHeaders(),
+        })
+        .pipe(map((response) => response?.content ?? [])),
     );
   }
 
   getAccounts(): Observable<AccountSummary[]> {
     return this.requestWithRetry(
-      this.http.get<AccountSummary[]>(`${this.apiUrl}/accounts`, {
-        headers: this.getHeaders(),
-      }),
+      this.http
+        .get<PageResponse<AccountSummary>>(`${this.apiUrl}/accounts`, {
+          headers: this.getHeaders(),
+        })
+        .pipe(map((response) => response?.content ?? [])),
     );
   }
 
@@ -138,9 +146,11 @@ export class TransactionDisputeService {
 
   getDisputes(): Observable<Dispute[]> {
     return this.requestWithRetry(
-      this.http.get<Dispute[]>(`${this.apiUrl}/disputes`, {
-        headers: this.getHeaders(),
-      }),
+      this.http
+        .get<PageResponse<Dispute>>(`${this.apiUrl}/disputes`, {
+          headers: this.getHeaders(),
+        })
+        .pipe(map((response) => response?.content ?? [])),
     );
   }
 
