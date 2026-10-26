@@ -266,6 +266,24 @@
                     <div><span>Created</span><strong>{{ formatDate(selectedDispute.createdAt) }}</strong></div>
                   </div>
 
+                  <div class="reverse-action-box">
+                    <label>
+                      Reversal reason
+                      <select [(ngModel)]="reverseReason" name="reverseReason">
+                        <option value="">Select reason</option>
+                        <option value="MERCHANT_ERROR">Merchant error</option>
+                        <option value="UNAUTHORISED_DEBIT">Unauthorised debit</option>
+                        <option value="DUPLICATE_DEBIT">Duplicate debit</option>
+                        <option value="FRAUD">Fraud</option>
+                        <option value="CANCELLATION">Cancellation</option>
+                      </select>
+                    </label>
+
+                    <button type="button" class="primary-button" [disabled]="isReversingDispute || selectedDispute.status === 'RESOLVED'" (click)="reverseDispute()">
+                      {{ isReversingDispute ? 'Reversing...' : 'Reverse dispute' }}
+                    </button>
+                  </div>
+
                   <div class="timeline">
                     @for (step of getDisputeTimeline(selectedDispute.status); track step; let i = $index) {
                       <div class="timeline-item" [class.done]="i <= getDisputeProgress(selectedDispute.status) / 35">

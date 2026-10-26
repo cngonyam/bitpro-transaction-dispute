@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.dto.DisputeResponse;
+import za.co.transactiondispute.dto.ReverseDisputeRequest;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.service.DisputeService;
 
@@ -34,6 +35,13 @@ public class DisputeController {
     @PostMapping("/disputes")
     public ResponseEntity<DisputeResponse> createDispute(@RequestBody DisputeCreateRequest request) {
         Dispute dispute = disputeService.createDispute(request);
+        return ResponseEntity.ok(toResponse(dispute));
+    }
+
+    @PostMapping("/disputes/{id}/reverse")
+    public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id, @RequestBody ReverseDisputeRequest request) {
+        String reasonCode = request != null ? request.getReasonCode() : null;
+        Dispute dispute = disputeService.reverseDispute(id, reasonCode);
         return ResponseEntity.ok(toResponse(dispute));
     }
 

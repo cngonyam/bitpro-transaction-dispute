@@ -50,21 +50,32 @@ public class AccountServiceImpl implements AccountService {
             return;
         }
 
-        BigDecimal totalBalance = transactionRepository.findByAccountNumber(account.getAccountNumber()).stream()
-                .filter(transaction -> transaction != null && transaction.getAmount() != null)
-                .map(Transaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        List<Transaction> accountTransactions = transactionRepository.findByAccountNumber(account.getAccountNumber());
 
-        BigDecimal finalizedBalance = transactionRepository.findByAccountNumber(account.getAccountNumber()).stream()
+        BigDecimal finalizedBalance = accountTransactions.stream()
                 .filter(transaction -> transaction != null
                         && transaction.getAmount() != null
                         && isBalanceImpactStatus(transaction.getStatus()))
-                .map(Transaction::getAmount)
+                .map(this::normalizeBalanceAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        account.setBalance(totalBalance);
-        account.setAvailableBalance(finalizedBalance);
+        BigDecimal availableBalance = accountTransactions.stream()
+                .filter(transaction -> transaction != null && transaction.getAmount() != null)
+                .map(this::normalizeBalanceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        account.setBalance(finalizedBalance);
+        account.setAvailableBalance(availableBalance);
         accountRepository.save(account);
+    }
+
+    private BigDecimal normalizeBalanceAmount(Transaction transaction) {
+        if (transaction == null || transaction.getAmount() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal magnitude = transaction.getAmount().abs();
+        return transaction.getType() == TransactionType.DEBIT ? magnitude.negate() : magnitude;
     }
 
     private boolean isBalanceImpactStatus(String status) {
@@ -73,7 +84,9 @@ public class AccountServiceImpl implements AccountService {
         }
 
         String normalized = status.trim().toUpperCase();
-        return "FINALISED".equals(normalized)
-                || "FINALIZED".equals(normalized);
+        return "RESOLVED".equals(normalized)
+                || "SETTLED".equals(normalized)
+                || "FINALIZED".equals(normalized)
+                || "FINALISED".equals(normalized);
     }
 }

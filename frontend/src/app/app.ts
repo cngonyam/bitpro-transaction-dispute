@@ -25,8 +25,10 @@ export class App implements OnInit {
   accountSummary: AccountSummary | null = null;
   selectedTransaction: Transaction | null = null;
   selectedDispute: Dispute | null = null;
+  reverseReason = '';
   historyFilter: 'ALL' | 'OPEN' | 'IN_REVIEW' | 'RESOLVED' = 'ALL';
   isSubmitting = false;
+  isReversingDispute = false;
   isLoggingIn = false;
   isLoggedIn = false;
   successMessage = '';
@@ -254,7 +256,43 @@ export class App implements OnInit {
 
   selectDisputeToTrack(dispute: Dispute): void {
     this.selectedDispute = dispute;
+    this.reverseReason = dispute.reasonCode || 'MERCHANT_ERROR';
     this.activeTab = 'track-dispute';
+  }
+
+  reverseDispute(): void {
+    if (!this.selectedDispute) {
+      this.errorMessage = 'Please select a dispute to reverse.';
+      return;
+    }
+
+    const reason = (this.reverseReason ?? '').trim();
+    if (!reason) {
+      this.errorMessage = 'Please choose a reversal reason before resolving the dispute.';
+      return;
+    }
+
+    if (this.isReversingDispute) {
+      return;
+    }
+
+    this.isReversingDispute = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    this.api.reverseDispute(this.selectedDispute.id, reason).subscribe({
+      next: (updatedDispute) => {
+        this.selectedDispute = updatedDispute;
+        this.reverseReason = updatedDispute.reasonCode || reason;
+        this.isReversingDispute = false;
+        this.successMessage = `Dispute ${updatedDispute.disputeId} has been reversed and resolved.`;
+        this.refreshDashboard();
+      },
+      error: () => {
+        this.isReversingDispute = false;
+        this.errorMessage = 'Unable to reverse this dispute. Please try again.';
+      },
+    });
   }
 
   submitDispute(): void {
@@ -391,21 +429,40 @@ export class App implements OnInit {
     return ['Submitted', 'Open', 'Under review'];
   }
 
+  private getSignedTransactionAmount(transaction: Transaction): number {
+    const numericValue = Number(transaction.amount ?? 0);
+    return (transaction.type ?? '').toUpperCase() === 'DEBIT'
+      ? -Math.abs(numericValue)
+      : Math.abs(numericValue);
+  }
+
+  private getSettledTotal(): number {
+    return this.transactions
+      .filter((transaction) => (transaction.status ?? '').toUpperCase() === 'SETTLED')
+      .reduce((sum, transaction) => sum + this.getSignedTransactionAmount(transaction), 0);
+  }
+
+  private getAllTransactionsTotal(): number {
+    return this.transactions.reduce((sum, transaction) => sum + this.getSignedTransactionAmount(transaction), 0);
+  }
+
   getAvailableBalance(): number {
+    if (this.transactions.length > 0) {
+      return this.getAllTransactionsTotal();
+    }
+
     if (this.accountSummary) {
       return Number(this.accountSummary.availableBalance ?? 0);
     }
 
-    const firstTransaction = this.transactions[0];
-
-    if (!firstTransaction) {
-      return 0;
-    }
-
-    return Number(firstTransaction.accountBalance ?? 0);
+    return 0;
   }
 
   getAccountBalance(): number {
+    if (this.transactions.length > 0) {
+      return this.getSettledTotal();
+    }
+
     if (this.accountSummary && this.accountSummary.balance != null) {
       return Number(this.accountSummary.balance ?? 0);
     }

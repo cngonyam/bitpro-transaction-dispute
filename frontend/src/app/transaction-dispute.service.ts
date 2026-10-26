@@ -46,6 +46,10 @@ export interface Dispute {
   updatedAt?: string;
 }
 
+export interface ReverseDisputeRequest {
+  reasonCode: string;
+}
+
 export interface AuthResponse {
   token: string;
   username: string;
@@ -142,6 +146,14 @@ export class TransactionDisputeService {
   getDisputes(): Observable<Dispute[]> {
     return this.requestWithRetry(
       this.http.get<Dispute[]>(`${this.apiUrl}/disputes`, {
+        headers: this.getHeaders(),
+      }),
+    );
+  }
+
+  reverseDispute(disputeId: number, reasonCode: string): Observable<Dispute> {
+    return this.requestWithRetry(
+      this.http.post<Dispute>(`${this.apiUrl}/disputes/${disputeId}/reverse`, { reasonCode }, {
         headers: this.getHeaders(),
       }),
     );
