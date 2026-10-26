@@ -137,11 +137,18 @@ export class TransactionDisputeService {
   }
 
   createDispute(request: DisputeCreateRequest): Observable<Dispute> {
-    return this.requestWithRetry(
-      this.http.post<Dispute>(`${this.apiUrl}/disputes`, request, {
-        headers: this.getHeaders(),
-      }),
-    );
+    const idempotencyKey = this.buildIdempotencyKey('create-dispute', {
+      transactionReference: request.transactionReference,
+      accountNumber: request.accountNumber,
+      disputedAmount: request.disputedAmount,
+      reasonCode: request.reasonCode,
+      description: request.description,
+      disputeType: request.disputeType,
+    });
+
+    return this.http.post<Dispute>(`${this.apiUrl}/disputes`, request, {
+      headers: this.getHeaders().set('X-Idempotency-Key', idempotencyKey),
+    });
   }
 
   getDisputes(): Observable<Dispute[]> {
@@ -155,11 +162,14 @@ export class TransactionDisputeService {
   }
 
   reverseDispute(disputeId: number, reasonCode: string): Observable<Dispute> {
-    return this.requestWithRetry(
-      this.http.post<Dispute>(`${this.apiUrl}/disputes/${disputeId}/reverse`, { reasonCode }, {
-        headers: this.getHeaders(),
-      }),
-    );
+    const idempotencyKey = this.buildIdempotencyKey('reverse-dispute', {
+      disputeId,
+      reasonCode,
+    });
+
+    return this.http.post<Dispute>(`${this.apiUrl}/disputes/${disputeId}/reverse`, { reasonCode }, {
+      headers: this.getHeaders().set('X-Idempotency-Key', idempotencyKey),
+    });
   }
 
   getProfile(): Observable<UserProfile> {
@@ -176,6 +186,24 @@ export class TransactionDisputeService {
         headers: this.getHeaders(),
       }),
     );
+  }
+
+  private buildIdempotencyKey(prefix: string, payload: unknown): string {
+    const normalized = JSON.stringify(payload ?? {});
+    const hash = this.hashString(normalized);
+    return `${prefix}-${hash}`;
+  }
+
+  private hashString(value: string): string {
+    let hash = 2166136261;
+
+    for (let index = 0; index < value.length; index += 1) {
+      const character = value.charCodeAt(index);
+      hash ^= character;
+      hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0).toString(16).padStart(8, '0');
   }
 
   private requestWithRetry<T>(request$: Observable<T>): Observable<T> {

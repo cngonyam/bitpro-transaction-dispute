@@ -112,8 +112,8 @@ public class DisputeServiceImpl implements DisputeService {
         }
 
         DisputeStatus disputeStatus = DisputeStatus.OPEN;
-        String decisionOutcome = request.getDecisionOutcome();
-        boolean provisionalCreditIssued = Boolean.TRUE.equals(request.getProvisionalCreditIssued());
+        String decisionOutcome = null;
+        boolean provisionalCreditIssued = false;
 
         LocalDateTime now = LocalDateTime.now();
         Dispute dispute = Dispute.builder()
@@ -163,8 +163,8 @@ public class DisputeServiceImpl implements DisputeService {
         if (!originalTransaction.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
             throw new IllegalArgumentException("Customers can only reverse disputes for their own account.");
         }
-        if (dispute.getStatus() == DisputeStatus.RESOLVED || REVERSED.equalsIgnoreCase(dispute.getDecisionOutcome())) {
-            throw new IllegalArgumentException("This dispute has already been reversed and cannot be reversed again.");
+        if (isReversalAlreadyApplied(dispute)) {
+            return dispute;
         }
 
         BigDecimal reversalAmount = dispute.getDisputedAmount() == null ? BigDecimal.ZERO : dispute.getDisputedAmount().abs();
@@ -201,5 +201,9 @@ public class DisputeServiceImpl implements DisputeService {
         smsClient.sendSms("+27123456789", "Dispute " + saved.getDisputeId() + " has been resolved and reversed");
 
         return saved;
+    }
+
+    private boolean isReversalAlreadyApplied(Dispute dispute) {
+        return dispute != null && (dispute.getStatus() == DisputeStatus.RESOLVED || REVERSED.equalsIgnoreCase(dispute.getDecisionOutcome()));
     }
 }

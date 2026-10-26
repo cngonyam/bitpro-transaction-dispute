@@ -1,5 +1,6 @@
 package za.co.transactiondispute.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -35,12 +36,14 @@ public class TransactionDto {
     private String currency;
 
     @NotNull(message = "Type is required")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private TransactionType type;
 
     @NotBlank(message = "Merchant name is required")
     private String merchantName;
 
     @NotBlank(message = "Status is required")
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private String status;
 
     private LocalDateTime transactionDate;

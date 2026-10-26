@@ -68,6 +68,8 @@ public class TransactionServiceImpl implements TransactionService {
             throw new IllegalArgumentException("Customers can only access their own account transactions.");
         }
 
+        transaction.setType(TransactionType.DEBIT);
+        transaction.setStatus("POSTED");
         transaction.setTransactionReference(generateTransactionReference());
         transaction.setAmount(normalizeAmount(transaction.getType(), transaction.getAmount()));
 

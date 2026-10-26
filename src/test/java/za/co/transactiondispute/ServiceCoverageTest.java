@@ -4,18 +4,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import za.co.transactiondispute.config.CustomerAccountContext;
-import za.co.transactiondispute.controller.AccountController;
 import za.co.transactiondispute.controller.DisputeController;
-import za.co.transactiondispute.controller.TransactionController;
-import za.co.transactiondispute.dto.AccountDto;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
-import za.co.transactiondispute.dto.TransactionDto;
+import za.co.transactiondispute.dto.DisputeResponse;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.entity.Transaction;
@@ -25,7 +20,6 @@ import za.co.transactiondispute.enums.DisputeType;
 import za.co.transactiondispute.enums.TransactionType;
 import za.co.transactiondispute.integration.EmailClient;
 import za.co.transactiondispute.integration.SmsClient;
-import za.co.transactiondispute.mapper.TransactionMapper;
 import za.co.transactiondispute.repository.AccountRepository;
 import za.co.transactiondispute.repository.DisputeRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
@@ -256,6 +250,112 @@ class ServiceCoverageTest {
     }
 
     @Test
+    void shouldRejectClientSuppliedCreditTypeAndStatusWhenCreatingTransaction() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        TransactionService transactionService = new TransactionServiceImpl(transactionRepository, context, accountRepository);
+
+        Transaction transaction = Transaction.builder()
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("50.00"))
+                .currency("ZAR")
+                .type(TransactionType.CREDIT)
+                .merchantName("Merchant")
+                .status("FINALIZED")
+                .transactionDate(LocalDateTime.now())
+                .description("should be rejected")
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(transaction));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+    }
+
+    @Test
+    void shouldIgnoreClientSuppliedDisputeDecisionFieldsWhenCreatingDispute() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfile userProfile = UserProfile.builder()
+                .username("dev-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .email("ndumiso.ngonyama@bitpro.co.za")
+                .phone("+27 11 555 0123")
+                .department("Customer Operations")
+                .region("Johannesburg, South Africa")
+                .build();
+
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("dev-user")).thenReturn(userProfile);
+
+        Transaction originalTransaction = Transaction.builder()
+                .transactionReference("TX-9")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("100.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Merchant")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("Original")
+                .build();
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-9");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("10.00"));
+        request.setReasonCode("MERCHANT_ERROR");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+        request.setDescription("Issue");
+        request.setProvisionalCreditIssued(true);
+        request.setDecisionOutcome("APPROVED");
+
+        when(transactionRepository.findByTransactionReference("TX-9")).thenReturn(Optional.of(originalTransaction));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("dev-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        Dispute created = disputeService.createDispute(request);
+
+        assertFalse(Boolean.TRUE.equals(created.getProvisionalCreditIssued()));
+        assertNull(created.getDecisionOutcome());
+    }
+
+    @Test
+    void shouldRejectDuplicateDisputeCreateRequestWithSameIdempotencyKey() {
+        DisputeService disputeService = mock(DisputeService.class);
+        DisputeController controller = new DisputeController(disputeService);
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-3");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("15.00"));
+        request.setReasonCode("MERCHANT_ERROR");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+        request.setDescription("duplicate test");
+
+        Dispute dispute = Dispute.builder()
+                .id(42L)
+                .disputeId("DSP-42")
+                .transactionReference("TX-3")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("15.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("duplicate test")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeService.createDispute(request)).thenReturn(dispute);
+
+        ResponseEntity<DisputeResponse> first = controller.createDispute(request, "abc-123");
+        ResponseEntity<DisputeResponse> second = controller.createDispute(request, "abc-123");
+
+        assertEquals(201, first.getStatusCode().value());
+        assertEquals(200, second.getStatusCode().value());
+        verify(disputeService, times(1)).createDispute(request);
+    }
+
+    @Test
     void shouldReverseValidDisputeAndCreateCreditReversal() {
         CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, mock(UserProfileService.class));
@@ -324,7 +424,7 @@ class ServiceCoverageTest {
     }
 
     @Test
-    void shouldRejectDuplicateReversal() {
+    void shouldReturnExistingDisputeWithoutCreatingSecondCreditOnDuplicateReverseRequest() {
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         Dispute dispute = Dispute.builder()
@@ -355,7 +455,12 @@ class ServiceCoverageTest {
                 .description("test")
                 .build()));
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "repeat reversal"));
+        Dispute result = disputeService.reverseDispute(1L, "repeat reversal");
+
+        assertSame(dispute, result);
+        assertEquals(DisputeStatus.RESOLVED, result.getStatus());
+        assertEquals("REVERSED", result.getDecisionOutcome());
+        verify(transactionRepository, never()).save(any(Transaction.class));
     }
 
     @Test

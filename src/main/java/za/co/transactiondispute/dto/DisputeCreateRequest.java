@@ -1,5 +1,6 @@
 package za.co.transactiondispute.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -35,7 +36,9 @@ public class DisputeCreateRequest {
     @NotBlank(message = "Description is required")
     private String description;
 
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private Boolean provisionalCreditIssued;
     private Boolean merchantEvidenceProvided;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private String decisionOutcome;
 }

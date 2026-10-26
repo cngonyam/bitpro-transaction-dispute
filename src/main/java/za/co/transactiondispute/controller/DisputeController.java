@@ -5,8 +5,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.dto.DisputeResponse;
@@ -16,12 +19,16 @@ import za.co.transactiondispute.service.DisputeService;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/v1")
 public class DisputeController {
 
     private final DisputeService disputeService;
+    private final Map<String, DisputeResponse> createIdempotencyCache = new ConcurrentHashMap<>();
+    private final Map<String, DisputeResponse> reverseIdempotencyCache = new ConcurrentHashMap<>();
 
     public DisputeController(DisputeService disputeService) {
         this.disputeService = disputeService;
@@ -40,9 +47,27 @@ public class DisputeController {
         return ResponseEntity.ok(toResponse(disputeService.getDisputeById(id).orElseThrow()));
     }
 
-    @PostMapping("/disputes")
     public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request) {
+        return createDispute(request, "legacy-create-" + java.util.UUID.randomUUID());
+    }
+
+    @PostMapping("/disputes")
+    public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request,
+                                                       @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
+        String resolvedKey = validateIdempotencyKey(idempotencyKey, "Dispute creation");
+        String cacheKey = "create:" + currentUserKey() + ":" + resolvedKey;
+        DisputeResponse cached = createIdempotencyCache.get(cacheKey);
+        if (cached != null) {
+            return ResponseEntity.ok(cached);
+        }
+
         Dispute dispute = disputeService.createDispute(request);
+        DisputeResponse response = toResponse(dispute);
+        DisputeResponse previous = createIdempotencyCache.putIfAbsent(cacheKey, response);
+        if (previous != null) {
+            return ResponseEntity.ok(previous);
+        }
+
         URI location;
         try {
             location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -52,14 +77,45 @@ public class DisputeController {
         } catch (IllegalStateException ex) {
             location = URI.create("/api/v1/disputes/" + dispute.getId());
         }
-        return ResponseEntity.created(location).body(toResponse(dispute));
+        return ResponseEntity.created(location).body(response);
+    }
+
+    public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id, @RequestBody ReverseDisputeRequest request) {
+        return reverseDispute(id, request, "legacy-reverse-" + java.util.UUID.randomUUID());
     }
 
     @PostMapping("/disputes/{id}/reverse")
-    public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id, @RequestBody ReverseDisputeRequest request) {
+    public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id,
+                                                        @RequestBody ReverseDisputeRequest request,
+                                                        @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
+        String resolvedKey = validateIdempotencyKey(idempotencyKey, "Dispute reversal");
+        String cacheKey = "reverse:" + currentUserKey() + ":" + id + ":" + resolvedKey;
+        DisputeResponse cached = reverseIdempotencyCache.get(cacheKey);
+        if (cached != null) {
+            return ResponseEntity.ok(cached);
+        }
+
         String reasonCode = request != null ? request.getReasonCode() : null;
         Dispute dispute = disputeService.reverseDispute(id, reasonCode);
-        return ResponseEntity.ok(toResponse(dispute));
+        DisputeResponse response = toResponse(dispute);
+        DisputeResponse previous = reverseIdempotencyCache.putIfAbsent(cacheKey, response);
+        if (previous != null) {
+            return ResponseEntity.ok(previous);
+        }
+        return ResponseEntity.ok(response);
+    }
+
+    private String validateIdempotencyKey(String rawKey, String action) {
+        String key = rawKey == null ? "" : rawKey.trim();
+        if (key.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, action + " requires the X-Idempotency-Key header.");
+        }
+        return key;
+    }
+
+    private String currentUserKey() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getName() != null ? authentication.getName() : "anonymous";
     }
 
     private DisputeResponse toResponse(Dispute dispute) {
