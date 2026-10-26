@@ -85,14 +85,12 @@ export class TransactionDisputeService {
 
   login(username: string, password: string): Observable<AuthResponse> {
     const cleanedUsername = (username ?? '').trim();
-    const authHeader = this.buildBasicAuthHeader(cleanedUsername, password ?? '');
 
     return this.requestWithRetry(
-      this.http.get(`${this.apiUrl}/transactions`, {
-        headers: new HttpHeaders({ Authorization: authHeader }),
-      }).pipe(
-        map(() => ({ token: authHeader, username: cleanedUsername })),
-      ),
+      this.http.post<AuthResponse>(`${this.apiUrl}/auth/login`, {
+        username: cleanedUsername,
+        password: password ?? '',
+      }),
     );
   }
 
@@ -104,18 +102,13 @@ export class TransactionDisputeService {
     this.authToken = '';
   }
 
-  private buildBasicAuthHeader(username: string, password: string): string {
-    const encoded = btoa(`${username}:${password}`);
-    return `Basic ${encoded}`;
-  }
-
   private getHeaders(): HttpHeaders {
     if (!this.authToken) {
       return new HttpHeaders();
     }
 
     return new HttpHeaders({
-      Authorization: this.authToken,
+      Authorization: `Bearer ${this.authToken}`,
     });
   }
 

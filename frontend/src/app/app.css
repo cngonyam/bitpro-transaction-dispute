@@ -325,6 +325,14 @@ th {
   border-color: #86efac;
 }
 
+.badge.status-reversed,
+.metric-box.metric-reversed,
+.status-row.status-reversed {
+  background: #e2e8f0;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
 .badge.status-rejected,
 .metric-box.metric-rejected,
 .status-row.status-rejected {

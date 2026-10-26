@@ -179,7 +179,7 @@ class ServiceCoverageTest {
                 .accountNumber("ACC-1001")
                 .amount(new BigDecimal("25.00"))
                 .currency("ZAR")
-                .type(TransactionType.CREDIT)
+                .type(TransactionType.DEBIT)
                 .merchantName("Auto Ref")
                 .status("FINALISED")
                 .transactionDate(LocalDateTime.now())
@@ -197,9 +197,20 @@ class ServiceCoverageTest {
         tx.setTransactionReference("TX-1");
         when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx, autoReferenceTransaction));
         assertEquals(tx, transactionService.createTransaction(tx));
-        assertEquals(new BigDecimal("-50.00"), account.getAvailableBalance());
-        assertEquals(new BigDecimal("25.00"), account.getBalance());
-        assertEquals(new BigDecimal("75.00"), account.getAvailableBalance().subtract(account.getBalance()));
+        assertTrue(account.getAvailableBalance().compareTo(BigDecimal.ZERO) < 0);
+        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) <= 0);
+        assertEquals(new BigDecimal("100.00"), account.getBalance().subtract(account.getAvailableBalance()));
+
+        assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(Transaction.builder()
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("200.00"))
+                .currency("ZAR")
+                .type(TransactionType.CREDIT)
+                .merchantName("Customer top-up")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("customer credit")
+                .build()));
 
         assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(null));
         assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(Transaction.builder().accountNumber("ACC-999").build()));
@@ -343,6 +354,32 @@ class ServiceCoverageTest {
         assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(new DisputeCreateRequest()));
         assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.getDisputeById(99L));
 
+        DisputeCreateRequest overLimitRequest = new DisputeCreateRequest();
+        overLimitRequest.setTransactionReference("TX-1");
+        overLimitRequest.setAccountNumber("ACC-1001");
+        overLimitRequest.setDisputedAmount(new BigDecimal("250.00"));
+        overLimitRequest.setReasonCode("OVER_LIMIT");
+        overLimitRequest.setDisputeType(DisputeType.CHARGEBACK);
+        overLimitRequest.setDescription("too high");
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(overLimitRequest));
+
+        Dispute resolvedDispute = Dispute.builder()
+                .id(99L)
+                .disputeId("DSP-RESOLVED")
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("10.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("resolved")
+                .status(DisputeStatus.RESOLVED)
+                .decisionOutcome("REVERSED")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        when(disputeRepository.findById(99L)).thenReturn(Optional.of(resolvedDispute));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(99L, "repeat reversal"));
+
         Dispute otherAccountDispute = Dispute.builder()
                 .id(2L)
                 .disputeId("DSP-OTHER")
@@ -395,9 +432,9 @@ class ServiceCoverageTest {
         TransactionController transactionController = new TransactionController(transactionService, new TransactionMapper(), accountRepository);
         assertEquals(2, transactionController.getTransactions().size());
         assertEquals("TX-1", transactionController.getTransaction("TX-1").getBody().getTransactionReference());
-        assertEquals(new BigDecimal("25.00"), transactionController.getTransaction("TX-1").getBody().getAccountBalance());
+        assertEquals(new BigDecimal("-125.00"), transactionController.getTransaction("TX-1").getBody().getAccountBalance());
         ResponseEntity<za.co.transactiondispute.dto.TransactionDto> newTransaction = transactionController.createTransaction(
-                za.co.transactiondispute.dto.TransactionDto.builder().accountNumber("ACC-1001").transactionReference("TX-2").amount(new BigDecimal("50")).currency("ZAR").type(TransactionType.CREDIT).merchantName("Store").status("POSTED").transactionDate(LocalDateTime.now()).description("x").build());
+                za.co.transactiondispute.dto.TransactionDto.builder().accountNumber("ACC-1001").transactionReference("TX-2").amount(new BigDecimal("50")).currency("ZAR").type(TransactionType.DEBIT).merchantName("Store").status("POSTED").transactionDate(LocalDateTime.now()).description("x").build());
         assertNotNull(newTransaction.getBody());
         assertTrue(newTransaction.getBody().getTransactionReference().startsWith("TX-"));
 

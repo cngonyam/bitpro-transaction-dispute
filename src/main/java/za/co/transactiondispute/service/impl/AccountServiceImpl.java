@@ -1,6 +1,8 @@
 package za.co.transactiondispute.service.impl;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Transaction;
 import za.co.transactiondispute.enums.TransactionType;
@@ -18,23 +20,43 @@ public class AccountServiceImpl implements AccountService {
 
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final CustomerAccountContext customerAccountContext;
 
     public AccountServiceImpl(AccountRepository accountRepository, TransactionRepository transactionRepository) {
+        this(accountRepository, transactionRepository, new CustomerAccountContext());
+    }
+
+    @Autowired
+    public AccountServiceImpl(AccountRepository accountRepository,
+                             TransactionRepository transactionRepository,
+                             CustomerAccountContext customerAccountContext) {
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
+        this.customerAccountContext = customerAccountContext;
     }
 
     @Override
     public List<Account> getAllAccounts() {
+        String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
         return accountRepository.findAll().stream()
+                .filter(account -> account != null && account.getAccountNumber() != null
+                        && account.getAccountNumber().equalsIgnoreCase(currentAccountNumber))
                 .peek(this::reconcileAccountBalance)
                 .toList();
     }
 
     @Override
     public Optional<Account> getAccountById(Long id) {
-        return Optional.ofNullable(accountRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found with id: " + id)));
+        String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
+        Account account = accountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found with id: " + id));
+
+        if (account.getAccountNumber() == null || !account.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
+            throw new ResourceNotFoundException("Account not found with id: " + id);
+        }
+
+        reconcileAccountBalance(account);
+        return Optional.of(account);
     }
 
     @Override
