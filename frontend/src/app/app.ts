@@ -44,8 +44,8 @@ export class App implements OnInit {
   };
 
   loginForm: LoginForm = {
-    username: 'dev-user',
-    password: 'dev-pass123',
+    username: '',
+    password: '',
   };
 
   form: DisputeCreateRequest = {
@@ -66,13 +66,8 @@ export class App implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.autoLogin();
-  }
-
-  private autoLogin(): void {
-    this.loginForm.username = 'dev-user';
-    this.loginForm.password = 'dev-pass123';
-    this.login();
+    this.api.clearToken();
+    this.isLoggedIn = false;
   }
 
   login(): void {
@@ -172,12 +167,14 @@ export class App implements OnInit {
   logout(): void {
     this.api.clearToken();
     this.isLoggedIn = false;
+    this.activeTab = 'transactions';
     this.transactions = [];
     this.disputes = [];
     this.selectedDispute = null;
     this.selectedTransaction = null;
     this.successMessage = 'You have been logged out.';
     this.errorMessage = '';
+    this.loginForm = { username: '', password: '' };
   }
 
   get filteredDisputes(): Dispute[] {
