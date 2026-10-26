@@ -10,6 +10,7 @@ import za.co.transactiondispute.exception.ResourceNotFoundException;
 import za.co.transactiondispute.repository.AccountRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
 import za.co.transactiondispute.service.TransactionService;
+import za.co.transactiondispute.util.BalanceCalculator;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,6 +21,8 @@ import java.util.UUID;
 
 @Service
 public class TransactionServiceImpl implements TransactionService {
+
+    private static final String TRANSACTION_REFERENCE_PREFIX = "TX-";
 
     private final TransactionRepository transactionRepository;
     private final CustomerAccountContext customerAccountContext;
@@ -76,10 +79,6 @@ public class TransactionServiceImpl implements TransactionService {
         return savedTransaction;
     }
 
-    private void reconcileAccountBalance(String accountNumber) {
-        reconcileAccountBalance(accountNumber, accountRepository.findByAccountNumber(accountNumber).orElse(null));
-    }
-
     private void reconcileAccountBalance(String accountNumber, Account account) {
         if (account == null) {
             account = accountRepository.findByAccountNumber(accountNumber).orElse(null);
@@ -89,53 +88,18 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         List<Transaction> accountTransactions = transactionRepository.findByAccountNumber(accountNumber);
-
-        BigDecimal finalizedBalance = accountTransactions.stream()
-                .filter(transaction -> transaction != null
-                        && transaction.getAmount() != null
-                        && isBalanceImpactStatus(transaction.getStatus()))
-                .map(this::normalizeBalanceAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal availableBalance = accountTransactions.stream()
-                .filter(transaction -> transaction != null && transaction.getAmount() != null)
-                .map(this::normalizeBalanceAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal finalizedBalance = BalanceCalculator.calculateFinalizedBalance(accountTransactions);
+        BigDecimal availableBalance = BalanceCalculator.calculateAvailableBalance(accountTransactions);
 
         account.setBalance(finalizedBalance);
         account.setAvailableBalance(availableBalance);
         accountRepository.save(account);
     }
 
-    private BigDecimal normalizeBalanceAmount(Transaction transaction) {
-        if (transaction == null || transaction.getAmount() == null) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal magnitude = transaction.getAmount().abs();
-        return transaction.getType() == TransactionType.DEBIT ? magnitude.negate() : magnitude;
-    }
-
     private String generateTransactionReference() {
         String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-        return "TX-" + datePart + "-" + randomPart;
-    }
-
-    private BigDecimal normalizeTransactionAmount(Transaction transaction) {
-        return normalizeAmount(transaction.getType(), transaction.getAmount());
-    }
-
-    private boolean isBalanceImpactStatus(String status) {
-        if (status == null) {
-            return false;
-        }
-
-        String normalized = status.trim().toUpperCase();
-        return "RESOLVED".equals(normalized)
-                || "SETTLED".equals(normalized)
-                || "FINALIZED".equals(normalized)
-                || "FINALISED".equals(normalized);
+        return TRANSACTION_REFERENCE_PREFIX + datePart + "-" + randomPart;
     }
 
     private BigDecimal normalizeAmount(TransactionType type, BigDecimal amount) {

@@ -1,16 +1,15 @@
 package za.co.transactiondispute.service.impl;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Transaction;
-import za.co.transactiondispute.enums.TransactionType;
 import za.co.transactiondispute.exception.ResourceNotFoundException;
 import za.co.transactiondispute.repository.AccountRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
 import za.co.transactiondispute.service.AccountService;
+import za.co.transactiondispute.util.BalanceCalculator;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,11 +22,6 @@ public class AccountServiceImpl implements AccountService {
     private final TransactionRepository transactionRepository;
     private final CustomerAccountContext customerAccountContext;
 
-    public AccountServiceImpl(AccountRepository accountRepository, TransactionRepository transactionRepository) {
-        this(accountRepository, transactionRepository, new CustomerAccountContext());
-    }
-
-    @Autowired
     public AccountServiceImpl(AccountRepository accountRepository,
                              TransactionRepository transactionRepository,
                              CustomerAccountContext customerAccountContext) {
@@ -62,6 +56,20 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<Account> getAccountByNumber(String accountNumber) {
+        if (accountNumber == null || accountNumber.isBlank()) {
+            return Optional.empty();
+        }
+
+        String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
+        return accountRepository.findByAccountNumber(accountNumber)
+                .filter(account -> account.getAccountNumber() != null
+                        && account.getAccountNumber().equalsIgnoreCase(currentAccountNumber))
+                .map(this::copyWithDerivedBalances);
+    }
+
+    @Override
     @Transactional
     public Account createAccount(Account account) {
         if (account == null) {
@@ -76,18 +84,8 @@ public class AccountServiceImpl implements AccountService {
         }
 
         List<Transaction> accountTransactions = transactionRepository.findByAccountNumber(account.getAccountNumber());
-
-        BigDecimal finalizedBalance = accountTransactions.stream()
-                .filter(transaction -> transaction != null
-                        && transaction.getAmount() != null
-                        && isBalanceImpactStatus(transaction.getStatus()))
-                .map(this::normalizeBalanceAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal availableBalance = accountTransactions.stream()
-                .filter(transaction -> transaction != null && transaction.getAmount() != null)
-                .map(this::normalizeBalanceAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal finalizedBalance = BalanceCalculator.calculateFinalizedBalance(accountTransactions);
+        BigDecimal availableBalance = BalanceCalculator.calculateAvailableBalance(accountTransactions);
 
         Account derived = new Account();
         derived.setId(account.getId());
@@ -99,50 +97,5 @@ public class AccountServiceImpl implements AccountService {
         derived.setBalance(finalizedBalance);
         derived.setStatus(account.getStatus());
         return derived;
-    }
-
-    private void reconcileAccountBalance(Account account) {
-        if (account == null || account.getAccountNumber() == null) {
-            return;
-        }
-
-        List<Transaction> accountTransactions = transactionRepository.findByAccountNumber(account.getAccountNumber());
-
-        BigDecimal finalizedBalance = accountTransactions.stream()
-                .filter(transaction -> transaction != null
-                        && transaction.getAmount() != null
-                        && isBalanceImpactStatus(transaction.getStatus()))
-                .map(this::normalizeBalanceAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal availableBalance = accountTransactions.stream()
-                .filter(transaction -> transaction != null && transaction.getAmount() != null)
-                .map(this::normalizeBalanceAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        account.setBalance(finalizedBalance);
-        account.setAvailableBalance(availableBalance);
-        accountRepository.save(account);
-    }
-
-    private BigDecimal normalizeBalanceAmount(Transaction transaction) {
-        if (transaction == null || transaction.getAmount() == null) {
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal magnitude = transaction.getAmount().abs();
-        return transaction.getType() == TransactionType.DEBIT ? magnitude.negate() : magnitude;
-    }
-
-    private boolean isBalanceImpactStatus(String status) {
-        if (status == null) {
-            return false;
-        }
-
-        String normalized = status.trim().toUpperCase();
-        return "RESOLVED".equals(normalized)
-                || "SETTLED".equals(normalized)
-                || "FINALIZED".equals(normalized)
-                || "FINALISED".equals(normalized);
     }
 }

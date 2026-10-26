@@ -11,7 +11,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import za.co.transactiondispute.dto.TransactionDto;
 import za.co.transactiondispute.entity.Transaction;
 import za.co.transactiondispute.mapper.TransactionMapper;
-import za.co.transactiondispute.repository.AccountRepository;
+import za.co.transactiondispute.service.AccountService;
 import za.co.transactiondispute.service.TransactionService;
 
 import java.net.URI;
@@ -23,12 +23,12 @@ public class TransactionController {
 
     private final TransactionService transactionService;
     private final TransactionMapper transactionMapper;
-    private final AccountRepository accountRepository;
+    private final AccountService accountService;
 
-    public TransactionController(TransactionService transactionService, TransactionMapper transactionMapper, AccountRepository accountRepository) {
+    public TransactionController(TransactionService transactionService, TransactionMapper transactionMapper, AccountService accountService) {
         this.transactionService = transactionService;
         this.transactionMapper = transactionMapper;
-        this.accountRepository = accountRepository;
+        this.accountService = accountService;
     }
 
     @GetMapping("/transactions")
@@ -62,7 +62,7 @@ public class TransactionController {
 
     private TransactionDto toDtoWithAccountBalance(Transaction transaction) {
         TransactionDto dto = transactionMapper.toDto(transaction);
-        accountRepository.findByAccountNumber(transaction.getAccountNumber())
+        accountService.getAccountByNumber(transaction.getAccountNumber())
                 .ifPresent(account -> dto.setAccountBalance(account.getAvailableBalance() != null ? account.getAvailableBalance() : account.getBalance()));
         return dto;
     }

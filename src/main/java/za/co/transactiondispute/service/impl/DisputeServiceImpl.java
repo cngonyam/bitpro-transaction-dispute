@@ -31,6 +31,11 @@ import java.util.UUID;
 @Service
 public class DisputeServiceImpl implements DisputeService {
 
+    private static final String DEFAULT_USERNAME = "dev-user";
+    private static final String DISPUTE_ID_PREFIX = "DSP-";
+    private static final String FINALISED = "FINALISED";
+    private static final String REVERSED = "REVERSED";
+
     private final DisputeRepository disputeRepository;
     private final TransactionRepository transactionRepository;
     private final DisputeValidator disputeValidator;
@@ -97,7 +102,7 @@ public class DisputeServiceImpl implements DisputeService {
 
         String username = SecurityContextHolder.getContext().getAuthentication() != null
                 ? SecurityContextHolder.getContext().getAuthentication().getName()
-                : "dev-user";
+                : DEFAULT_USERNAME;
         UserProfile assignedProfile = userProfileService.getProfile(username);
 
         BigDecimal disputedAmount = request.getDisputedAmount() == null ? BigDecimal.ZERO : request.getDisputedAmount().abs();
@@ -112,7 +117,7 @@ public class DisputeServiceImpl implements DisputeService {
 
         LocalDateTime now = LocalDateTime.now();
         Dispute dispute = Dispute.builder()
-                .disputeId("DSP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .disputeId(DISPUTE_ID_PREFIX + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
                 .transactionReference(transaction.getTransactionReference())
                 .accountNumber(request.getAccountNumber())
                 .disputedAmount(disputedAmount)
@@ -158,7 +163,7 @@ public class DisputeServiceImpl implements DisputeService {
         if (!originalTransaction.getAccountNumber().equalsIgnoreCase(currentAccountNumber)) {
             throw new IllegalArgumentException("Customers can only reverse disputes for their own account.");
         }
-        if (dispute.getStatus() == DisputeStatus.RESOLVED || "REVERSED".equalsIgnoreCase(dispute.getDecisionOutcome())) {
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || REVERSED.equalsIgnoreCase(dispute.getDecisionOutcome())) {
             throw new IllegalArgumentException("This dispute has already been reversed and cannot be reversed again.");
         }
 
@@ -175,17 +180,17 @@ public class DisputeServiceImpl implements DisputeService {
                 .currency(originalTransaction.getCurrency())
                 .type(TransactionType.CREDIT)
                 .merchantName("Dispute reversal")
-                .status("FINALISED")
+                .status(FINALISED)
                 .transactionDate(LocalDateTime.now())
                 .description("Dispute reversal for " + originalTransaction.getTransactionReference() + " - " + normalizedReason)
                 .build();
         transactionRepository.save(reversalTransaction);
 
-        originalTransaction.setStatus("REVERSED");
+        originalTransaction.setStatus(REVERSED);
         transactionRepository.save(originalTransaction);
 
         dispute.setReasonCode(normalizedReason);
-        dispute.setDecisionOutcome("REVERSED");
+        dispute.setDecisionOutcome(REVERSED);
         dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setUpdatedAt(LocalDateTime.now());
         String currentDescription = dispute.getDescription() == null ? "" : dispute.getDescription();
