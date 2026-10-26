@@ -2,6 +2,7 @@ package za.co.transactiondispute.service.impl;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.entity.Account;
@@ -58,11 +59,13 @@ public class DisputeServiceImpl implements DisputeService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Dispute> getAllDisputes() {
         return disputeRepository.findByAccountNumber(customerAccountContext.getCurrentAccountNumber());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Dispute> getDisputeById(Long id) {
         return disputeRepository.findById(id)
                 .filter(dispute -> dispute.getAccountNumber().equalsIgnoreCase(customerAccountContext.getCurrentAccountNumber()))
@@ -72,6 +75,7 @@ public class DisputeServiceImpl implements DisputeService {
     }
 
     @Override
+    @Transactional
     public Dispute createDispute(DisputeCreateRequest request) {
         if (request != null && request.getDisputeType() == null) {
             request.setDisputeType(DisputeType.CHARGEBACK);
@@ -132,6 +136,7 @@ public class DisputeServiceImpl implements DisputeService {
     }
 
     @Override
+    @Transactional
     public Dispute reverseDispute(Long disputeId, String reasonCode) {
         if (disputeId == null) {
             throw new IllegalArgumentException("Dispute id is required");

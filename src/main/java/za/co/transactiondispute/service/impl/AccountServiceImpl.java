@@ -2,6 +2,7 @@ package za.co.transactiondispute.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Transaction;
@@ -36,16 +37,18 @@ public class AccountServiceImpl implements AccountService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Account> getAllAccounts() {
         String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
         return accountRepository.findAll().stream()
                 .filter(account -> account != null && account.getAccountNumber() != null
                         && account.getAccountNumber().equalsIgnoreCase(currentAccountNumber))
-                .peek(this::reconcileAccountBalance)
+                .map(this::copyWithDerivedBalances)
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Account> getAccountById(Long id) {
         String currentAccountNumber = customerAccountContext.getCurrentAccountNumber();
         Account account = accountRepository.findById(id)
@@ -55,16 +58,47 @@ public class AccountServiceImpl implements AccountService {
             throw new ResourceNotFoundException("Account not found with id: " + id);
         }
 
-        reconcileAccountBalance(account);
-        return Optional.of(account);
+        return Optional.of(copyWithDerivedBalances(account));
     }
 
     @Override
+    @Transactional
     public Account createAccount(Account account) {
         if (account == null) {
             throw new IllegalArgumentException("Account payload is required");
         }
         return accountRepository.save(account);
+    }
+
+    private Account copyWithDerivedBalances(Account account) {
+        if (account == null || account.getAccountNumber() == null) {
+            return account;
+        }
+
+        List<Transaction> accountTransactions = transactionRepository.findByAccountNumber(account.getAccountNumber());
+
+        BigDecimal finalizedBalance = accountTransactions.stream()
+                .filter(transaction -> transaction != null
+                        && transaction.getAmount() != null
+                        && isBalanceImpactStatus(transaction.getStatus()))
+                .map(this::normalizeBalanceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal availableBalance = accountTransactions.stream()
+                .filter(transaction -> transaction != null && transaction.getAmount() != null)
+                .map(this::normalizeBalanceAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Account derived = new Account();
+        derived.setId(account.getId());
+        derived.setVersion(account.getVersion());
+        derived.setAccountNumber(account.getAccountNumber());
+        derived.setCustomerName(account.getCustomerName());
+        derived.setCurrency(account.getCurrency());
+        derived.setAvailableBalance(availableBalance);
+        derived.setBalance(finalizedBalance);
+        derived.setStatus(account.getStatus());
+        return derived;
     }
 
     private void reconcileAccountBalance(Account account) {

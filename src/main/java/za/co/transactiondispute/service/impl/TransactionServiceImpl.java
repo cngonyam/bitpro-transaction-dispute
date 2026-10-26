@@ -1,6 +1,7 @@
 package za.co.transactiondispute.service.impl;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Transaction;
@@ -33,14 +34,14 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Transaction> getAllTransactions() {
-        reconcileAccountBalance(customerAccountContext.getCurrentAccountNumber());
         return transactionRepository.findByAccountNumber(customerAccountContext.getCurrentAccountNumber());
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<Transaction> getTransactionByReference(String reference) {
-        reconcileAccountBalance(customerAccountContext.getCurrentAccountNumber());
         return transactionRepository.findByTransactionReference(reference)
                 .filter(transaction -> transaction.getAccountNumber().equalsIgnoreCase(customerAccountContext.getCurrentAccountNumber()))
                 .or(() -> {
@@ -49,6 +50,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional
     public Transaction createTransaction(Transaction transaction) {
         if (transaction == null) {
             throw new IllegalArgumentException("Transaction payload is required");
