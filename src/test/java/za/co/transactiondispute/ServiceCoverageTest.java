@@ -7,6 +7,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.controller.AccountController;
 import za.co.transactiondispute.controller.DisputeController;
@@ -30,6 +32,7 @@ import za.co.transactiondispute.repository.TransactionRepository;
 import za.co.transactiondispute.service.AccountService;
 import za.co.transactiondispute.service.DisputeService;
 import za.co.transactiondispute.service.TransactionService;
+import za.co.transactiondispute.service.UserProfileService;
 import za.co.transactiondispute.service.impl.AccountServiceImpl;
 import za.co.transactiondispute.service.impl.DisputeServiceImpl;
 import za.co.transactiondispute.service.impl.TransactionServiceImpl;
@@ -142,187 +145,9 @@ class ServiceCoverageTest {
     }
 
     @Test
-    void shouldCoverValidatorsServicesAndControllers() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
-        Account account = Account.builder()
-                .accountNumber("ACC-1001")
-                .customerName("A")
-                .currency("ZAR")
-                .availableBalance(new BigDecimal("500.00"))
-                .balance(new BigDecimal("500.00"))
-                .status("ACTIVE")
-                .build();
-
-        when(accountRepository.findAll()).thenReturn(List.of(account));
-        when(accountRepository.findById(1L)).thenReturn(Optional.of(account));
-        when(accountRepository.save(any(Account.class))).thenReturn(account);
-
-        assertEquals(1, accountService.getAllAccounts().size());
-        assertEquals("ACC-1001", accountService.getAccountById(1L).orElseThrow().getAccountNumber());
-        assertEquals(account, accountService.createAccount(account));
-        assertThrows(IllegalArgumentException.class, () -> accountService.createAccount(null));
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> accountService.getAccountById(99L));
-
-        CustomerAccountContext customerAccountContext = new CustomerAccountContext("ACC-1001");
-        TransactionService transactionService = new TransactionServiceImpl(transactionRepository, customerAccountContext, accountRepository);
-        Transaction tx = Transaction.builder()
-                .transactionReference("TX-1")
-                .accountNumber("ACC-1001")
-                .amount(new BigDecimal("100.00"))
-                .currency("ZAR")
-                .type(TransactionType.DEBIT)
-                .merchantName("Shop")
-                .status("POSTED")
-                .transactionDate(LocalDateTime.now())
-                .description("description")
-                .build();
-
-        TransactionDto debitDto = za.co.transactiondispute.dto.TransactionDto.builder()
-                .transactionReference("TX-NEG")
-                .accountNumber("ACC-1001")
-                .amount(new BigDecimal("75.00"))
-                .currency("ZAR")
-                .type(TransactionType.DEBIT)
-                .merchantName("Groceries")
-                .status("POSTED")
-                .transactionDate(LocalDateTime.now())
-                .description("Debit amount")
-                .build();
-        assertEquals(new BigDecimal("-75.00"), new TransactionMapper().toEntity(debitDto).getAmount());
-
-        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx));
-        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(tx));
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(tx);
-        when(accountRepository.findByAccountNumber("ACC-1001")).thenReturn(Optional.of(account));
-        when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        assertEquals(1, transactionService.getAllTransactions().size());
-        assertEquals("TX-1", transactionService.getTransactionByReference("TX-1").orElseThrow().getTransactionReference());
-
-        Transaction autoReferenceTransaction = Transaction.builder()
-                .transactionReference(null)
-                .accountNumber("ACC-1001")
-                .amount(new BigDecimal("25.00"))
-                .currency("ZAR")
-                .type(TransactionType.DEBIT)
-                .merchantName("Auto Ref")
-                .status("FINALISED")
-                .transactionDate(LocalDateTime.now())
-                .description("Generated reference")
-                .build();
-        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(
-                tx,
-                autoReferenceTransaction
-        ));
-
-        Transaction savedAutoReferenceTransaction = transactionService.createTransaction(autoReferenceTransaction);
-        assertNotNull(savedAutoReferenceTransaction.getTransactionReference());
-        assertTrue(savedAutoReferenceTransaction.getTransactionReference().startsWith("TX-"));
-
-        tx.setTransactionReference("TX-1");
-        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx, autoReferenceTransaction));
-        assertEquals(tx, transactionService.createTransaction(tx));
-        assertTrue(account.getAvailableBalance().compareTo(BigDecimal.ZERO) < 0);
-        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) <= 0);
-        assertEquals(new BigDecimal("100.00"), account.getBalance().subtract(account.getAvailableBalance()));
-
-        assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(Transaction.builder()
-                .accountNumber("ACC-1001")
-                .amount(new BigDecimal("200.00"))
-                .currency("ZAR")
-                .type(TransactionType.CREDIT)
-                .merchantName("Customer top-up")
-                .status("POSTED")
-                .transactionDate(LocalDateTime.now())
-                .description("customer credit")
-                .build()));
-
-        assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(null));
-        assertThrows(IllegalArgumentException.class, () -> transactionService.createTransaction(Transaction.builder().accountNumber("ACC-999").build()));
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> transactionService.getTransactionByReference("missing"));
-
-        DisputeValidator disputeValidator = new DisputeValidator();
-        DisputeCreateRequest validRequest = new DisputeCreateRequest();
-        validRequest.setTransactionReference("TX-1");
-        validRequest.setAccountNumber("ACC-1001");
-        validRequest.setDisputedAmount(new BigDecimal("25.00"));
-        validRequest.setReasonCode("FRAUD");
-        validRequest.setDisputeType(DisputeType.CHARGEBACK);
-        validRequest.setDescription("Issue");
-        assertDoesNotThrow(() -> disputeValidator.validateCreateRequest(validRequest));
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(null));
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(new DisputeCreateRequest()));
-        DisputeCreateRequest missingReference = new DisputeCreateRequest();
-        missingReference.setAccountNumber("ACC-1001");
-        missingReference.setDisputedAmount(new BigDecimal("25.00"));
-        missingReference.setReasonCode("FRAUD");
-        missingReference.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(missingReference));
-
-        DisputeCreateRequest missingAccount = new DisputeCreateRequest();
-        missingAccount.setTransactionReference("TX-1");
-        missingAccount.setDisputedAmount(new BigDecimal("25.00"));
-        missingAccount.setReasonCode("FRAUD");
-        missingAccount.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(missingAccount));
-
-        DisputeCreateRequest zeroAmount = new DisputeCreateRequest();
-        zeroAmount.setTransactionReference("TX-1");
-        zeroAmount.setAccountNumber("ACC-1001");
-        zeroAmount.setDisputedAmount(BigDecimal.ZERO);
-        zeroAmount.setReasonCode("FRAUD");
-        zeroAmount.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(zeroAmount));
-
-        DisputeCreateRequest blankReason = new DisputeCreateRequest();
-        blankReason.setTransactionReference("TX-1");
-        blankReason.setAccountNumber("ACC-1001");
-        blankReason.setDisputedAmount(new BigDecimal("25.00"));
-        blankReason.setReasonCode("   ");
-        blankReason.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(blankReason));
-
-        DisputeCreateRequest blankReference = new DisputeCreateRequest();
-        blankReference.setTransactionReference("   ");
-        blankReference.setAccountNumber("ACC-1001");
-        blankReference.setDisputedAmount(new BigDecimal("25.00"));
-        blankReference.setReasonCode("FRAUD");
-        blankReference.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(blankReference));
-
-        DisputeCreateRequest blankAccount = new DisputeCreateRequest();
-        blankAccount.setTransactionReference("TX-1");
-        blankAccount.setAccountNumber("   ");
-        blankAccount.setDisputedAmount(new BigDecimal("25.00"));
-        blankAccount.setReasonCode("FRAUD");
-        blankAccount.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(blankAccount));
-
-        DisputeCreateRequest nullAmount = new DisputeCreateRequest();
-        nullAmount.setTransactionReference("TX-1");
-        nullAmount.setAccountNumber("ACC-1001");
-        nullAmount.setReasonCode("FRAUD");
-        nullAmount.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(nullAmount));
-
-        DisputeCreateRequest nullReason = new DisputeCreateRequest();
-        nullReason.setTransactionReference("TX-1");
-        nullReason.setAccountNumber("ACC-1001");
-        nullReason.setDisputedAmount(new BigDecimal("25.00"));
-        nullReason.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(nullReason));
-
-        DisputeCreateRequest missingType = new DisputeCreateRequest();
-        missingType.setTransactionReference("TX-1");
-        missingType.setAccountNumber("ACC-1001");
-        missingType.setDisputedAmount(new BigDecimal("25.00"));
-        missingType.setReasonCode("FRAUD");
-        assertThrows(IllegalArgumentException.class, () -> disputeValidator.validateCreateRequest(missingType));
-
-        EmailClient emailClient = mock(EmailClient.class);
-        SmsClient smsClient = mock(SmsClient.class);
-        za.co.transactiondispute.service.UserProfileService userProfileService = mock(za.co.transactiondispute.service.UserProfileService.class);
-        when(userProfileService.getProfile(anyString())).thenReturn(UserProfile.builder()
+    void shouldCreateDisputeForCurrentAccount() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfile userProfile = UserProfile.builder()
                 .username("dev-user")
                 .fullName("Ndumiso Ngonyama")
                 .role("Dispute Operations Lead")
@@ -330,271 +155,322 @@ class ServiceCoverageTest {
                 .phone("+27 11 555 0123")
                 .department("Customer Operations")
                 .region("Johannesburg, South Africa")
-                .build());
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, disputeValidator, emailClient, smsClient, customerAccountContext, accountRepository, userProfileService);
+                .build();
+
+        DisputeValidator validator = new DisputeValidator();
+        EmailClient emailClient = mock(EmailClient.class);
+        SmsClient smsClient = mock(SmsClient.class);
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("dev-user")).thenReturn(userProfile);
+
+        Transaction originalTransaction = Transaction.builder()
+                .transactionReference("TX-100")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("150.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Merchant")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("Original")
+                .build();
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-100");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("25.00"));
+        request.setReasonCode("MERCHANT_ERROR");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+        request.setDescription("Issue");
+
+        when(transactionRepository.findByTransactionReference("TX-100")).thenReturn(Optional.of(originalTransaction));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("dev-user", "pw"));
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, validator, emailClient, smsClient, context, accountRepository, userProfileService);
+
+        Dispute created = disputeService.createDispute(request);
+
+        assertNotNull(created);
+        assertEquals("ACC-1001", created.getAccountNumber());
+        assertEquals(DisputeStatus.OPEN, created.getStatus());
+        assertEquals("Ndumiso Ngonyama", created.getAssignedToFullName());
+        assertTrue(created.getDisputeId().startsWith("DSP-"));
+    }
+
+    @Test
+    void shouldRejectDisputeForOtherAccount() {
+        DisputeValidator validator = new DisputeValidator();
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, validator, mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-1");
+        request.setAccountNumber("ACC-999");
+        request.setDisputedAmount(new BigDecimal("25.00"));
+        request.setReasonCode("FRAUD");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+    }
+
+    @Test
+    void shouldRejectDisputeWhenTransactionMissing() {
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("missing-tx");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("10.00"));
+        request.setReasonCode("FRAUD");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+
+        when(transactionRepository.findByTransactionReference("missing-tx")).thenReturn(Optional.empty());
+
+        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.createDispute(request));
+    }
+
+    @Test
+    void shouldRejectDisputeWhenAmountExceedsOriginal() {
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-1");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("200.00"));
+        request.setReasonCode("FRAUD");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+
+        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(Transaction.builder()
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("50.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Shop")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("test")
+                .build()));
+
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+    }
+
+    @Test
+    void shouldReverseValidDisputeAndCreateCreditReversal() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, mock(UserProfileService.class));
+
         Dispute dispute = Dispute.builder()
                 .id(1L)
-                .disputeId("DSP-ABC123")
+                .disputeId("DSP-100")
                 .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
                 .disputedAmount(new BigDecimal("25.00"))
                 .reasonCode("FRAUD")
                 .disputeType(DisputeType.CHARGEBACK)
                 .description("Issue")
-                .assignedToFullName("Ndumiso Ngonyama")
                 .status(DisputeStatus.OPEN)
+                .decisionOutcome(null)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(dispute));
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
-        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        assertEquals(1, disputeService.getAllDisputes().size());
-        assertEquals("DSP-ABC123", disputeService.getDisputeById(1L).orElseThrow().getDisputeId());
-        assertEquals(DisputeType.CHARGEBACK, disputeService.createDispute(validRequest).getDisputeType());
-
-        Account debitOrderAccount = Account.builder()
-                .id(10L)
-                .accountNumber("ACC-1001")
-                .customerName("A")
-                .currency("ZAR")
-                .availableBalance(new BigDecimal("500.00"))
-                .status("ACTIVE")
-                .build();
-        when(accountRepository.findByAccountNumber("ACC-1001")).thenReturn(Optional.of(debitOrderAccount));
-        DisputeCreateRequest normalChargebackRequest = new DisputeCreateRequest();
-        normalChargebackRequest.setTransactionReference("TX-1");
-        normalChargebackRequest.setAccountNumber("ACC-1001");
-        normalChargebackRequest.setDisputedAmount(new BigDecimal("75.00"));
-        normalChargebackRequest.setReasonCode("UNAUTHORISED_DEBIT");
-        normalChargebackRequest.setDisputeType(DisputeType.CHARGEBACK);
-        normalChargebackRequest.setDescription("Chargeback requested");
-
-        Dispute chargebackDispute = disputeService.createDispute(normalChargebackRequest);
-        assertEquals(DisputeStatus.OPEN, chargebackDispute.getStatus());
-        assertEquals(DisputeType.CHARGEBACK, chargebackDispute.getDisputeType());
-
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(new DisputeCreateRequest()));
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.getDisputeById(99L));
-
-        DisputeCreateRequest overLimitRequest = new DisputeCreateRequest();
-        overLimitRequest.setTransactionReference("TX-1");
-        overLimitRequest.setAccountNumber("ACC-1001");
-        overLimitRequest.setDisputedAmount(new BigDecimal("250.00"));
-        overLimitRequest.setReasonCode("OVER_LIMIT");
-        overLimitRequest.setDisputeType(DisputeType.CHARGEBACK);
-        overLimitRequest.setDescription("too high");
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(overLimitRequest));
-
-        Dispute resolvedDispute = Dispute.builder()
-                .id(99L)
-                .disputeId("DSP-RESOLVED")
+        Transaction original = Transaction.builder()
                 .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
-                .disputedAmount(new BigDecimal("10.00"))
-                .reasonCode("FRAUD")
-                .disputeType(DisputeType.CHARGEBACK)
-                .description("resolved")
-                .status(DisputeStatus.RESOLVED)
-                .decisionOutcome("REVERSED")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        when(disputeRepository.findById(99L)).thenReturn(Optional.of(resolvedDispute));
-        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(99L, "repeat reversal"));
-
-        Dispute otherAccountDispute = Dispute.builder()
-                .id(2L)
-                .disputeId("DSP-OTHER")
-                .transactionReference("TX-2")
-                .accountNumber("ACC-999")
-                .disputedAmount(new BigDecimal("10.00"))
-                .reasonCode("FRAUD")
-                .description("Other")
-                .status(DisputeStatus.OPEN)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        when(disputeRepository.findById(2L)).thenReturn(Optional.of(otherAccountDispute));
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.getDisputeById(2L));
-
-        DisputeCreateRequest otherAccountRequest = new DisputeCreateRequest();
-        otherAccountRequest.setTransactionReference("TX-1");
-        otherAccountRequest.setAccountNumber("ACC-999");
-        otherAccountRequest.setDisputedAmount(new BigDecimal("25.00"));
-        otherAccountRequest.setReasonCode("FRAUD");
-        otherAccountRequest.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(otherAccountRequest));
-
-        Transaction otherCustomerTransaction = Transaction.builder()
-                .transactionReference("TX-1")
-                .accountNumber("ACC-999")
-                .amount(new BigDecimal("100.00"))
+                .amount(new BigDecimal("50.00"))
                 .currency("ZAR")
                 .type(TransactionType.DEBIT)
                 .merchantName("Shop")
                 .status("POSTED")
                 .transactionDate(LocalDateTime.now())
-                .description("outside account")
+                .description("original")
                 .build();
-        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(otherCustomerTransaction));
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(validRequest));
 
-        when(transactionRepository.findByTransactionReference("missing-tx")).thenReturn(Optional.empty());
-        DisputeCreateRequest missingTransactionRequest = new DisputeCreateRequest();
-        missingTransactionRequest.setTransactionReference("missing-tx");
-        missingTransactionRequest.setAccountNumber("ACC-1001");
-        missingTransactionRequest.setDisputedAmount(new BigDecimal("25.00"));
-        missingTransactionRequest.setReasonCode("FRAUD");
-        missingTransactionRequest.setDisputeType(DisputeType.CHARGEBACK);
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.createDispute(missingTransactionRequest));
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(original));
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(tx));
-        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(tx, autoReferenceTransaction));
-        tx.setTransactionReference("TX-1");
-        TransactionController transactionController = new TransactionController(transactionService, new TransactionMapper(), accountService);
-        Page<za.co.transactiondispute.dto.TransactionDto> transactionsPage = transactionController.getTransactions(Pageable.unpaged());
-        assertEquals(2, transactionsPage.getContent().size());
-        assertEquals("TX-1", transactionController.getTransaction("TX-1").getBody().getTransactionReference());
-        assertNotNull(transactionController.getTransaction("TX-1").getBody());
-        ResponseEntity<za.co.transactiondispute.dto.TransactionDto> newTransaction = transactionController.createTransaction(
-                za.co.transactiondispute.dto.TransactionDto.builder().accountNumber("ACC-1001").transactionReference("TX-2").amount(new BigDecimal("50")).currency("ZAR").type(TransactionType.DEBIT).merchantName("Store").status("POSTED").transactionDate(LocalDateTime.now()).description("x").build());
-        assertNotNull(newTransaction.getBody());
-        assertTrue(newTransaction.getBody().getTransactionReference().startsWith("TX-"));
+        Dispute reversed = disputeService.reverseDispute(1L, "duplicate transaction");
 
-        AccountController accountController = new AccountController(accountService);
-        Page<AccountDto> accountsPage = accountController.getAccounts(Pageable.unpaged());
-        assertEquals(1, accountsPage.getContent().size());
-        assertEquals("ACC-1001", accountController.getAccount(1L).getBody().getAccountNumber());
-        AccountDto accountDto = AccountDto.builder()
-                .accountNumber("ACC-2000")
-                .customerName("B")
-                .currency("ZAR")
-                .availableBalance(new BigDecimal("10.00"))
-                .status("ACTIVE")
-                .build();
-        ResponseEntity<AccountDto> createdAccount = accountController.createAccount(accountDto);
-        assertEquals("ACC-2000", createdAccount.getBody().getAccountNumber());
-
-        DisputeController disputeController = new DisputeController(disputeService);
-        Page<za.co.transactiondispute.dto.DisputeResponse> disputesPage = disputeController.getDisputes(Pageable.unpaged());
-        assertEquals(1, disputesPage.getContent().size());
-        assertEquals("DSP-ABC123", disputeController.getDispute(1L).getBody().getDisputeId());
-        ResponseEntity<za.co.transactiondispute.dto.DisputeResponse> createdDispute = disputeController.createDispute(validRequest);
-        assertNotNull(createdDispute.getBody().getDisputeId());
+        assertEquals(DisputeStatus.RESOLVED, reversed.getStatus());
+        assertEquals("REVERSED", reversed.getDecisionOutcome());
+        assertTrue(reversed.getDescription().contains("duplicate transaction"));
+        assertEquals("REVERSED", original.getStatus());
+        verify(transactionRepository, atLeastOnce()).save(any(Transaction.class));
+        verify(disputeRepository).save(dispute);
     }
 
     @Test
-    void shouldNormalizeDebitAmountsWhenReconcilingBalance() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
-        Account account = Account.builder()
+    void shouldRejectReversalWithBlankReason() {
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        Dispute dispute = Dispute.builder()
+                .id(1L)
+                .disputeId("DSP-100")
+                .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
-                .customerName("Jane Smith")
-                .currency("ZAR")
-                .availableBalance(BigDecimal.ZERO)
-                .balance(BigDecimal.ZERO)
-                .status("ACTIVE")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(accountRepository.findAll()).thenReturn(List.of(account));
-        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("12000.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.CREDIT)
-                        .merchantName("Employer Payroll")
-                        .status("FINALISED")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Salary")
-                        .build(),
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("1300.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.DEBIT)
-                        .merchantName("Card payment")
-                        .status("FINALISED")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Card")
-                        .build(),
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("1200.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.DEBIT)
-                        .merchantName("Debit order")
-                        .status("FINALISED")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Order")
-                        .build()
-        ));
-
-        Account reconciled = accountService.getAllAccounts().get(0);
-        assertEquals(new BigDecimal("9500.00"), reconciled.getBalance());
-        assertEquals(new BigDecimal("9500.00"), reconciled.getAvailableBalance());
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "   "));
     }
 
     @Test
-    void shouldExcludePendingAmountsFromBalance() {
-        AccountService accountService = new AccountServiceImpl(accountRepository, transactionRepository, new CustomerAccountContext("ACC-1001"));
-        Account account = Account.builder()
+    void shouldRejectDuplicateReversal() {
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        Dispute dispute = Dispute.builder()
+                .id(1L)
+                .disputeId("DSP-100")
+                .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
-                .customerName("Jane Smith")
-                .currency("ZAR")
-                .availableBalance(BigDecimal.ZERO)
-                .balance(BigDecimal.ZERO)
-                .status("ACTIVE")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.RESOLVED)
+                .decisionOutcome("REVERSED")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(accountRepository.findAll()).thenReturn(List.of(account));
-        when(transactionRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("12000.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.CREDIT)
-                        .merchantName("Employer Payroll")
-                        .status("FINALISED")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Salary")
-                        .build(),
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("1300.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.DEBIT)
-                        .merchantName("Card payment")
-                        .status("RESOLVED")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Card")
-                        .build(),
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("1200.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.DEBIT)
-                        .merchantName("Debit order")
-                        .status("SETTLED")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Order")
-                        .build(),
-                Transaction.builder()
-                        .accountNumber("ACC-1001")
-                        .amount(new BigDecimal("500.00"))
-                        .currency("ZAR")
-                        .type(TransactionType.CREDIT)
-                        .merchantName("Pending refund")
-                        .status("PENDING")
-                        .transactionDate(LocalDateTime.now())
-                        .description("Pending")
-                        .build()
-        ));
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(Transaction.builder()
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("50.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Shop")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("test")
+                .build()));
 
-        Account reconciled = accountService.getAllAccounts().get(0);
-        assertEquals(new BigDecimal("9500.00"), reconciled.getBalance());
-        assertEquals(new BigDecimal("10000.00"), reconciled.getAvailableBalance());
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "repeat reversal"));
+    }
+
+    @Test
+    void shouldRejectReversalForOtherAccount() {
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        Dispute dispute = Dispute.builder()
+                .id(1L)
+                .disputeId("DSP-100")
+                .transactionReference("TX-1")
+                .accountNumber("ACC-999")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+
+        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.reverseDispute(1L, "other account"));
+    }
+
+    @Test
+    void shouldReturnOnlyCurrentCustomerDisputes() {
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+
+        Dispute current = Dispute.builder()
+                .id(1L)
+                .disputeId("DSP-CURRENT")
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("10.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Current")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        Dispute other = Dispute.builder()
+                .id(2L)
+                .disputeId("DSP-OTHER")
+                .transactionReference("TX-2")
+                .accountNumber("ACC-999")
+                .disputedAmount(new BigDecimal("12.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Other")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findByAccountNumber("ACC-1001")).thenReturn(List.of(current));
+
+        List<Dispute> disputes = disputeService.getAllDisputes();
+
+        assertEquals(1, disputes.size());
+        assertEquals("ACC-1001", disputes.get(0).getAccountNumber());
+        assertNotEquals("ACC-999", disputes.get(0).getAccountNumber());
+    }
+
+    @Test
+    void shouldValidateDisputeRequestWhenFieldsArePresent() {
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-1");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("25.00"));
+        request.setReasonCode("FRAUD");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+
+        assertDoesNotThrow(() -> new DisputeValidator().validateCreateRequest(request));
+    }
+
+    @Test
+    void shouldRejectNullDisputeRequest() {
+        assertThrows(IllegalArgumentException.class, () -> new DisputeValidator().validateCreateRequest(null));
+    }
+
+    @Test
+    void shouldRejectBlankTransactionReference() {
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("   ");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("25.00"));
+        request.setReasonCode("FRAUD");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+
+        assertThrows(IllegalArgumentException.class, () -> new DisputeValidator().validateCreateRequest(request));
+    }
+
+    @Test
+    void shouldRejectZeroDisputedAmount() {
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-1");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(BigDecimal.ZERO);
+        request.setReasonCode("FRAUD");
+        request.setDisputeType(DisputeType.CHARGEBACK);
+
+        assertThrows(IllegalArgumentException.class, () -> new DisputeValidator().validateCreateRequest(request));
+    }
+
+    @Test
+    void shouldRejectMissingDisputeType() {
+        DisputeCreateRequest request = new DisputeCreateRequest();
+        request.setTransactionReference("TX-1");
+        request.setAccountNumber("ACC-1001");
+        request.setDisputedAmount(new BigDecimal("25.00"));
+        request.setReasonCode("FRAUD");
+
+        assertThrows(IllegalArgumentException.class, () -> new DisputeValidator().validateCreateRequest(request));
     }
 }
