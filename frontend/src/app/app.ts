@@ -26,7 +26,7 @@ export class App implements OnInit {
   selectedTransaction: Transaction | null = null;
   selectedDispute: Dispute | null = null;
   reverseReason = '';
-  historyFilter: 'ALL' | 'OPEN' | 'IN_REVIEW' | 'RESOLVED' = 'ALL';
+  historyFilter: 'ALL' | 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'REVERSED' = 'ALL';
   isSubmitting = false;
   isReversingDispute = false;
   isLoggingIn = false;
@@ -238,6 +238,12 @@ export class App implements OnInit {
       return;
     }
 
+    if (this.isDisputeDisabled(transaction)) {
+      this.errorMessage = 'Reversed transactions are not eligible for dispute submission.';
+      this.successMessage = '';
+      return;
+    }
+
     const absoluteAmount = Math.abs(Number(transaction.amount ?? 0));
     this.selectedTransaction = transaction;
     this.form.transactionReference = transaction.transactionReference;
@@ -400,6 +406,11 @@ export class App implements OnInit {
     return (transaction?.type ?? '').toUpperCase() === 'CREDIT';
   }
 
+  isDisputeDisabled(transaction?: Transaction | null): boolean {
+    return this.isCreditTransaction(transaction)
+      || (transaction?.status ?? '').toUpperCase() === 'REVERSED';
+  }
+
   getDisputeProgress(status?: string): number {
     const normalized = (status ?? '').toUpperCase();
 
@@ -409,6 +420,7 @@ export class App implements OnInit {
       case 'IN_REVIEW':
         return 60;
       case 'RESOLVED':
+      case 'REVERSED':
         return 100;
       default:
         return 15;
@@ -420,6 +432,10 @@ export class App implements OnInit {
 
     if (normalized === 'RESOLVED') {
       return ['Submitted', 'In review', 'Final review', 'Resolved'];
+    }
+
+    if (normalized === 'REVERSED') {
+      return ['Submitted', 'In review', 'Final review', 'Reversed'];
     }
 
     if (normalized === 'IN_REVIEW') {

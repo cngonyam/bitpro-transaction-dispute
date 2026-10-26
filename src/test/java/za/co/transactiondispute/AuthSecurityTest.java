@@ -49,12 +49,19 @@ class AuthSecurityTest {
     }
 
     @Test
-    void basicAuthAllowsProtectedEndpoint() throws Exception {
-        String basicAuth = "Basic " + java.util.Base64.getEncoder()
-                .encodeToString("dev-user:dev-pass123".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    void jwtAuthorizationAllowsProtectedEndpoint() throws Exception {
+        String token = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"dev-user\",\"password\":\"dev-pass123\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String jwt = objectMapper.readTree(token).get("token").asText();
 
         mockMvc.perform(get("/api/v1/transactions")
-                        .header("Authorization", basicAuth))
+                        .header("Authorization", "Bearer " + jwt))
                 .andExpect(status().isOk());
     }
 }

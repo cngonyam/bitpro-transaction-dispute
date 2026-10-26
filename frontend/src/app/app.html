@@ -70,15 +70,17 @@
                     <td>{{ transaction.description || (transaction.status.toUpperCase() === 'PENDING' ? formatAmount(transaction.amount, transaction.type) : '—') }}</td>
                     <td>{{ transaction.merchantName }}</td>
                     <td>{{ formatAmount(transaction.amount, transaction.type) }}</td>
-                    <td><span class="badge status-badge">{{ transaction.status }}</span></td>
+                    <td><span
+                      class="badge status-badge"
+                      [class.status-reversed]="(transaction.status || '').toUpperCase() === 'REVERSED'">{{ transaction.status }}</span></td>
                     <td>
                       <button
                         type="button"
                         class="link-button"
-                        [disabled]="isCreditTransaction(transaction)"
-                        [attr.aria-disabled]="isCreditTransaction(transaction)"
+                        [disabled]="isDisputeDisabled(transaction)"
+                        [attr.aria-disabled]="isDisputeDisabled(transaction)"
                         (click)="selectTransaction(transaction)">
-                        {{ isCreditTransaction(transaction) ? 'Not eligible' : 'Dispute' }}
+                        {{ isDisputeDisabled(transaction) ? 'Not eligible' : 'Dispute' }}
                       </button>
                     </td>
                   </tr>
@@ -211,6 +213,7 @@
                     [class.status-open]="dispute.status === 'OPEN'"
                     [class.status-in-review]="dispute.status === 'IN_REVIEW'"
                     [class.status-resolved]="dispute.status === 'RESOLVED'"
+                    [class.status-reversed]="dispute.status === 'REVERSED'"
                     [class.status-rejected]="dispute.status === 'REJECTED'"
                     [class.status-provisional-credit-issued]="dispute.status === 'PROVISIONAL_CREDIT_ISSUED'"
                     [class.status-merchant-response-pending]="dispute.status === 'MERCHANT_RESPONSE_PENDING'"
@@ -224,6 +227,7 @@
                       [class.status-open]="dispute.status === 'OPEN'"
                       [class.status-in-review]="dispute.status === 'IN_REVIEW'"
                       [class.status-resolved]="dispute.status === 'RESOLVED'"
+                      [class.status-reversed]="dispute.status === 'REVERSED'"
                       [class.status-rejected]="dispute.status === 'REJECTED'"
                       [class.status-provisional-credit-issued]="dispute.status === 'PROVISIONAL_CREDIT_ISSUED'"
                       [class.status-merchant-response-pending]="dispute.status === 'MERCHANT_RESPONSE_PENDING'">{{ dispute.status }}</span>
@@ -245,6 +249,7 @@
                       [class.status-open]="selectedDispute.status === 'OPEN'"
                       [class.status-in-review]="selectedDispute.status === 'IN_REVIEW'"
                       [class.status-resolved]="selectedDispute.status === 'RESOLVED'"
+                      [class.status-reversed]="selectedDispute.status === 'REVERSED'"
                       [class.status-rejected]="selectedDispute.status === 'REJECTED'"
                       [class.status-provisional-credit-issued]="selectedDispute.status === 'PROVISIONAL_CREDIT_ISSUED'"
                       [class.status-merchant-response-pending]="selectedDispute.status === 'MERCHANT_RESPONSE_PENDING'">{{ selectedDispute.status }}</span>
@@ -311,6 +316,7 @@
               <button type="button" [class.active]="historyFilter === 'OPEN'" (click)="historyFilter = 'OPEN'">Open</button>
               <button type="button" [class.active]="historyFilter === 'IN_REVIEW'" (click)="historyFilter = 'IN_REVIEW'">In review</button>
               <button type="button" [class.active]="historyFilter === 'RESOLVED'" (click)="historyFilter = 'RESOLVED'">Resolved</button>
+              <button type="button" [class.active]="historyFilter === 'REVERSED'" (click)="historyFilter = 'REVERSED'">Reversed</button>
             </div>
           </div>
 
@@ -334,7 +340,15 @@
                     <td>{{ dispute.transactionReference }}</td>
                     <td>{{ dispute.accountNumber }}</td>
                     <td>{{ formatAmount(dispute.disputedAmount) }}</td>
-                    <td><span class="badge">{{ dispute.status }}</span></td>
+                    <td><span
+                      class="badge"
+                      [class.status-reversed]="(dispute.status || '').toUpperCase() === 'REVERSED'"
+                      [class.status-resolved]="(dispute.status || '').toUpperCase() === 'RESOLVED'"
+                      [class.status-open]="(dispute.status || '').toUpperCase() === 'OPEN'"
+                      [class.status-in-review]="(dispute.status || '').toUpperCase() === 'IN_REVIEW'"
+                      [class.status-rejected]="(dispute.status || '').toUpperCase() === 'REJECTED'"
+                      [class.status-provisional-credit-issued]="(dispute.status || '').toUpperCase() === 'PROVISIONAL_CREDIT_ISSUED'"
+                      [class.status-merchant-response-pending]="(dispute.status || '').toUpperCase() === 'MERCHANT_RESPONSE_PENDING'">{{ dispute.status }}</span></td>
                     <td>{{ formatDate(dispute.updatedAt ?? dispute.createdAt) }}</td>
                     <td><button type="button" class="link-button" (click)="selectDisputeToTrack(dispute)">Track</button></td>
                   </tr>
