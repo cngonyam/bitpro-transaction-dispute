@@ -2,6 +2,7 @@ package za.co.transactiondispute;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,8 @@ import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.dto.DisputeResponse;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Dispute;
+import za.co.transactiondispute.entity.DisputeLedgerEntry;
+import za.co.transactiondispute.entity.DisputeStatusHistory;
 import za.co.transactiondispute.entity.Transaction;
 import za.co.transactiondispute.entity.UserProfile;
 import za.co.transactiondispute.enums.DisputeStatus;
@@ -21,8 +24,11 @@ import za.co.transactiondispute.enums.TransactionType;
 import za.co.transactiondispute.integration.EmailClient;
 import za.co.transactiondispute.integration.SmsClient;
 import za.co.transactiondispute.repository.AccountRepository;
+import za.co.transactiondispute.repository.DisputeLedgerEntryRepository;
 import za.co.transactiondispute.repository.DisputeRepository;
+import za.co.transactiondispute.repository.DisputeStatusHistoryRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
+import za.co.transactiondispute.repository.UserProfileRepository;
 import za.co.transactiondispute.service.AccountService;
 import za.co.transactiondispute.service.DisputeService;
 import za.co.transactiondispute.service.TransactionService;
@@ -30,7 +36,9 @@ import za.co.transactiondispute.service.UserProfileService;
 import za.co.transactiondispute.service.impl.AccountServiceImpl;
 import za.co.transactiondispute.service.impl.DisputeServiceImpl;
 import za.co.transactiondispute.service.impl.TransactionServiceImpl;
+import za.co.transactiondispute.service.impl.UserProfileServiceImpl;
 import za.co.transactiondispute.util.BalanceCalculator;
+import za.co.transactiondispute.util.UserRoles;
 import za.co.transactiondispute.validation.DisputeValidator;
 
 import java.math.BigDecimal;
@@ -295,6 +303,209 @@ class ServiceCoverageTest {
                 .build()));
 
         assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+    }
+
+    @Test
+    void shouldRejectReviewFromCustomerRole() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("customer-user")).thenReturn(UserProfile.builder()
+                .username("customer-user")
+                .fullName("Customer User")
+                .role("CUSTOMER")
+                .build());
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("customer-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+
+        Dispute dispute = Dispute.builder()
+                .id(1L)
+                .disputeId("DSP-100")
+                .transactionReference("TX-1")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.OPEN)
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reviewDispute(1L, "APPROVED", "Looks valid"));
+    }
+
+    @Test
+    void shouldRejectApprovalFromNonAdminRole() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("agent-user")).thenReturn(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Agent User")
+                .role("AGENT")
+                .build());
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+
+        Dispute dispute = Dispute.builder()
+                .id(2L)
+                .disputeId("DSP-101")
+                .transactionReference("TX-2")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("15.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.IN_REVIEW)
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(2L)).thenReturn(Optional.of(dispute));
+
+        assertThrows(IllegalArgumentException.class, () -> disputeService.approveDispute(2L, "Approved by agent"));
+    }
+
+    @Test
+    void shouldAllowLeadUserToApproveDisputeInReview() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("lead-user")).thenReturn(UserProfile.builder()
+                .username("lead-user")
+                .fullName("Operations Lead")
+                .role("Dispute Operations Lead")
+                .build());
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("lead-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+
+        Dispute dispute = Dispute.builder()
+                .id(2L)
+                .disputeId("DSP-101")
+                .transactionReference("TX-2")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("15.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.IN_REVIEW)
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(2L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Dispute approved = disputeService.approveDispute(2L, "Approved by operations lead");
+
+        assertEquals(DisputeStatus.PROVISIONAL_CREDIT_ISSUED, approved.getStatus());
+        assertEquals("lead-user", approved.getApprovedByUsername());
+    }
+
+    @Test
+    void shouldCanonicaliseAliasRolesAcrossProfileAndOperations() {
+        UserProfileRepository userProfileRepository = mock(UserProfileRepository.class);
+        when(userProfileRepository.findByUsername("agent-user")).thenReturn(Optional.of(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .email("ndumiso.ngonyama@bitpro.co.za")
+                .build()));
+        when(userProfileRepository.findByUsername("admin-user")).thenReturn(Optional.of(UserProfile.builder()
+                .username("admin-user")
+                .fullName("System Admin")
+                .role("System Admin")
+                .email("admin@bitpro.co.za")
+                .build()));
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfileService userProfileService = new UserProfileServiceImpl(userProfileRepository);
+
+        UserProfile saved = userProfileService.saveProfile("agent-user", UserProfile.builder()
+                .username("agent-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .email("ndumiso.ngonyama@bitpro.co.za")
+                .build());
+        assertEquals("AGENT", saved.getRole());
+
+        UserProfile admin = userProfileService.saveProfile("admin-user", UserProfile.builder()
+                .username("admin-user")
+                .fullName("System Admin")
+                .role("System Admin")
+                .email("admin@bitpro.co.za")
+                .build());
+
+        assertEquals("ADMIN", admin.getRole());
+    }
+
+    @Test
+    void shouldPersistCanonicalActorRoleInDisputeStatusHistory() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        DisputeStatusHistoryRepository disputeStatusHistoryRepository = mock(DisputeStatusHistoryRepository.class);
+        when(userProfileService.getProfile("agent-user")).thenReturn(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .email("ndumiso.ngonyama@bitpro.co.za")
+                .build());
+
+        Dispute dispute = Dispute.builder()
+                .id(99L)
+                .disputeId("DSP-999")
+                .transactionReference("TX-999")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.OPEN)
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(99L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(disputeStatusHistoryRepository.save(any(DisputeStatusHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(
+                disputeRepository,
+                transactionRepository,
+                new DisputeValidator(),
+                mock(EmailClient.class),
+                mock(SmsClient.class),
+                context,
+                accountRepository,
+                userProfileService,
+                disputeStatusHistoryRepository,
+                null
+        );
+
+        disputeService.reviewDispute(99L, "APPROVED", "Looks valid");
+
+        var captor = org.mockito.ArgumentCaptor.forClass(DisputeStatusHistory.class);
+        verify(disputeStatusHistoryRepository).save(captor.capture());
+        assertEquals("AGENT", captor.getValue().getActorRole());
+        assertEquals("agent-user", captor.getValue().getActor());
+    }
+
+    @Test
+    void shouldFallbackToPrimaryAccountForAdminUserWhenMappingIsMissing() {
+        CustomerAccountContext context = new CustomerAccountContext("agent-user=ACC-1001,customer-user=ACC-1001");
+
+        assertEquals("ACC-1001", context.getCurrentAccountNumber("admin-user"));
     }
 
     @Test
@@ -585,6 +796,222 @@ class ServiceCoverageTest {
     }
 
     @Test
+    void shouldPersistLedgerAuditEntryWhenDisputeIsReversed() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("agent-user")).thenReturn(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Agent User")
+                .role("DISPUTE_AGENT")
+                .build());
+
+        DisputeLedgerEntryRepository ledgerEntryRepository = mock(DisputeLedgerEntryRepository.class);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(
+                disputeRepository,
+                transactionRepository,
+                new DisputeValidator(),
+                mock(EmailClient.class),
+                mock(SmsClient.class),
+                context,
+                accountRepository,
+                userProfileService,
+                mock(DisputeStatusHistoryRepository.class),
+                mock(za.co.transactiondispute.repository.DisputeIdempotencyRepository.class),
+                ledgerEntryRepository
+        );
+
+        Dispute dispute = Dispute.builder()
+                .id(12L)
+                .disputeId("DSP-12")
+                .transactionReference("TX-12")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.PROVISIONAL_CREDIT_ISSUED)
+                .decisionOutcome(null)
+                .approvedByUsername("admin-user")
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        Transaction original = Transaction.builder()
+                .transactionReference("TX-12")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("50.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Shop")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("original")
+                .build();
+
+        when(disputeRepository.findById(12L)).thenReturn(Optional.of(dispute));
+        when(transactionRepository.findByTransactionReference("TX-12")).thenReturn(Optional.of(original));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        disputeService.reverseDispute(12L, "duplicate transaction", "ledger-key-12");
+
+        verify(ledgerEntryRepository).save(argThat(entry ->
+                entry.getDisputeId().equals(12L)
+                        && "REVERSED".equals(entry.getAction())
+                        && new BigDecimal("25.00").compareTo(entry.getAmount()) == 0
+                        && "ACC-1001".equals(entry.getAccountNumber())
+                        && "agent-user".equals(entry.getActor())));
+    }
+
+    @Test
+    void shouldPersistReversalActorOnDispute() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("agent-user")).thenReturn(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Ndumiso Ngonyama")
+                .role("Dispute Operations Lead")
+                .build());
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+
+        Dispute dispute = Dispute.builder()
+                .id(7L)
+                .disputeId("DSP-7")
+                .transactionReference("TX-7")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.PROVISIONAL_CREDIT_ISSUED)
+                .decisionOutcome(null)
+                .approvedByUsername("admin-user")
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        Transaction original = Transaction.builder()
+                .transactionReference("TX-7")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("75.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Shop")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("original")
+                .build();
+
+        when(disputeRepository.findById(7L)).thenReturn(Optional.of(dispute));
+        when(transactionRepository.findByTransactionReference("TX-7")).thenReturn(Optional.of(original));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Dispute reversed = disputeService.reverseDispute(7L, "duplicate transaction");
+
+        assertEquals("agent-user", reversed.getReversedByUsername());
+        assertEquals("AGENT", reversed.getReversedByRole());
+    }
+
+    @Test
+    void shouldRecordReviewStatusTransitionFromOpenToInReview() {
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("agent-user")).thenReturn(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Agent User")
+                .role("DISPUTE_AGENT")
+                .build());
+
+        DisputeStatusHistoryRepository disputeStatusHistoryRepository = mock(DisputeStatusHistoryRepository.class);
+        DisputeService disputeService = new DisputeServiceImpl(
+                disputeRepository,
+                transactionRepository,
+                new DisputeValidator(),
+                mock(EmailClient.class),
+                mock(SmsClient.class),
+                new CustomerAccountContext("ACC-1001"),
+                accountRepository,
+                userProfileService,
+                disputeStatusHistoryRepository,
+                null
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+
+        Dispute dispute = Dispute.builder()
+                .id(21L)
+                .disputeId("DSP-21")
+                .transactionReference("TX-21")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.OPEN)
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeRepository.findById(21L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(disputeStatusHistoryRepository.save(any(DisputeStatusHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        disputeService.reviewDispute(21L, "APPROVE", "Reviewed merchant evidence");
+
+        ArgumentCaptor<DisputeStatusHistory> historyCaptor = ArgumentCaptor.forClass(DisputeStatusHistory.class);
+        verify(disputeStatusHistoryRepository).save(historyCaptor.capture());
+
+        assertEquals(DisputeStatus.OPEN, historyCaptor.getValue().getFromStatus());
+        assertEquals(DisputeStatus.IN_REVIEW, historyCaptor.getValue().getToStatus());
+        assertEquals("DISPUTE_REVIEWED", historyCaptor.getValue().getAction());
+    }
+
+    @Test
+    void shouldReturnDisputeHistoryWithCanonicalActorRole() {
+        DisputeStatusHistoryRepository disputeStatusHistoryRepository = mock(DisputeStatusHistoryRepository.class);
+        DisputeService disputeService = new DisputeServiceImpl(
+                disputeRepository,
+                transactionRepository,
+                new DisputeValidator(),
+                mock(EmailClient.class),
+                mock(SmsClient.class),
+                new CustomerAccountContext("ACC-1001"),
+                accountRepository,
+                mock(UserProfileService.class),
+                disputeStatusHistoryRepository,
+                null
+        );
+
+        when(disputeStatusHistoryRepository.findByDisputeIdOrderByChangedAtAsc(42L)).thenReturn(List.of(
+                DisputeStatusHistory.builder()
+                        .id(1L)
+                        .disputeId(42L)
+                        .fromStatus(DisputeStatus.OPEN)
+                        .toStatus(DisputeStatus.IN_REVIEW)
+                        .action("DISPUTE_REVIEWED")
+                        .reasonCode("MERCHANT_ERROR")
+                        .actor("agent-user")
+                        .actorRole("AGENT")
+                        .changedAt(LocalDateTime.now())
+                        .build()
+        ));
+
+        List<DisputeStatusHistory> history = disputeService.getDisputeHistory(42L);
+
+        assertEquals(1, history.size());
+        assertEquals("AGENT", history.get(0).getActorRole());
+        assertEquals("DISPUTE_REVIEWED", history.get(0).getAction());
+    }
+
+    @Test
     void shouldRejectReversalWithBlankReason() {
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
@@ -649,6 +1076,71 @@ class ServiceCoverageTest {
                 .build()));
 
         assertThrows(za.co.transactiondispute.exception.DomainConflictException.class, () -> disputeService.reverseDispute(1L, "repeat reversal"));
+        verify(transactionRepository, never()).save(any(Transaction.class));
+    }
+
+    @Test
+    void shouldRejectReversalWhenLedgerEntryAlreadyExistsForDispute() {
+        CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
+        UserProfileService userProfileService = mock(UserProfileService.class);
+        when(userProfileService.getProfile("agent-user")).thenReturn(UserProfile.builder()
+                .username("agent-user")
+                .fullName("Agent User")
+                .role("DISPUTE_AGENT")
+                .build());
+
+        DisputeLedgerEntryRepository ledgerEntryRepository = mock(DisputeLedgerEntryRepository.class);
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+
+        DisputeService disputeService = new DisputeServiceImpl(
+                disputeRepository,
+                transactionRepository,
+                new DisputeValidator(),
+                mock(EmailClient.class),
+                mock(SmsClient.class),
+                context,
+                accountRepository,
+                userProfileService,
+                mock(DisputeStatusHistoryRepository.class),
+                mock(za.co.transactiondispute.repository.DisputeIdempotencyRepository.class),
+                ledgerEntryRepository
+        );
+
+        Dispute dispute = Dispute.builder()
+                .id(150L)
+                .disputeId("DSP-150")
+                .transactionReference("TX-150")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("25.00"))
+                .reasonCode("FRAUD")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.PROVISIONAL_CREDIT_ISSUED)
+                .decisionOutcome(null)
+                .approvedByUsername("admin-user")
+                .submittedByUsername("customer-user")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        Transaction original = Transaction.builder()
+                .transactionReference("TX-150")
+                .accountNumber("ACC-1001")
+                .amount(new BigDecimal("50.00"))
+                .currency("ZAR")
+                .type(TransactionType.DEBIT)
+                .merchantName("Shop")
+                .status("POSTED")
+                .transactionDate(LocalDateTime.now())
+                .description("original")
+                .build();
+
+        when(disputeRepository.findById(150L)).thenReturn(Optional.of(dispute));
+        when(transactionRepository.findByTransactionReference("TX-150")).thenReturn(Optional.of(original));
+        when(ledgerEntryRepository.existsByDisputeIdAndAction(150L, "REVERSED")).thenReturn(true);
+
+        assertThrows(za.co.transactiondispute.exception.DomainConflictException.class,
+                () -> disputeService.reverseDispute(150L, "duplicate transaction", "ledger-guard-150"));
         verify(transactionRepository, never()).save(any(Transaction.class));
     }
 
@@ -860,6 +1352,15 @@ class ServiceCoverageTest {
     }
 
     @Test
+    void shouldRecogniseLeadUsersAsAgentLevelOperators() {
+        assertEquals(UserRoles.ADMIN, UserRoles.canonicalize("Dispute Admin", null));
+        assertEquals(UserRoles.AGENT, UserRoles.canonicalize("Dispute Operations Lead", null));
+        assertEquals(UserRoles.AGENT, UserRoles.defaultRoleForUsername("lead-user"));
+        assertEquals(UserRoles.AGENT, UserRoles.defaultRoleForUsername("operations-lead"));
+        assertEquals(UserRoles.CUSTOMER, UserRoles.defaultRoleForUsername("customer-user"));
+    }
+
+    @Test
     void shouldRequireReviewApprovalBeforeReversal() {
         CustomerAccountContext context = new CustomerAccountContext("ACC-1001");
         UserProfileService userProfileService = mock(UserProfileService.class);
@@ -913,8 +1414,11 @@ class ServiceCoverageTest {
                 .fullName("Agent User")
                 .role("DISPUTE_AGENT")
                 .build());
-
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
+        when(userProfileService.getProfile("admin-user")).thenReturn(UserProfile.builder()
+                .username("admin-user")
+                .fullName("Admin User")
+                .role("ADMIN")
+                .build());
 
         DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
@@ -936,13 +1440,15 @@ class ServiceCoverageTest {
         when(disputeRepository.findById(99L)).thenReturn(Optional.of(dispute));
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
         Dispute reviewed = disputeService.reviewDispute(99L, "APPROVE", "Needs verification");
         assertEquals(DisputeStatus.IN_REVIEW, reviewed.getStatus());
         assertEquals("agent-user", reviewed.getReviewerUsername());
 
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("admin-user", "pw"));
         Dispute approved = disputeService.approveDispute(99L, "Approved by team lead");
         assertEquals(DisputeStatus.PROVISIONAL_CREDIT_ISSUED, approved.getStatus());
-        assertEquals("agent-user", approved.getApprovedByUsername());
+        assertEquals("admin-user", approved.getApprovedByUsername());
     }
 
     @Test

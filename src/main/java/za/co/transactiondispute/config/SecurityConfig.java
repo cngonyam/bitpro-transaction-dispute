@@ -54,12 +54,22 @@ public class SecurityConfig {
                 .roles("AGENT")
                 .build();
 
+        UserDetails adminUser = User.withUsername("admin-user")
+                .password(passwordEncoder.encode("admin-pass123"))
+                .roles("ADMIN")
+                .build();
+
+        UserDetails leadUser = User.withUsername("lead-user")
+                .password(passwordEncoder.encode("lead-pass123"))
+                .roles("AGENT")
+                .build();
+
         UserDetails customerUser = User.withUsername("customer-user")
                 .password(passwordEncoder.encode("customer-pass123"))
                 .roles("CUSTOMER")
                 .build();
 
-        return new InMemoryUserDetailsManager(agentUser, customerUser);
+        return new InMemoryUserDetailsManager(agentUser, adminUser, leadUser, customerUser);
     }
 
     @Bean

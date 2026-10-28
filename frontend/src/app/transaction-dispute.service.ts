@@ -40,6 +40,8 @@ export interface Dispute {
   assignedToFullName?: string;
   reviewerUsername?: string;
   approvedByUsername?: string;
+  reversedByUsername?: string;
+  reversedByRole?: string;
   reviewDecision?: string;
   approvalNote?: string;
   provisionalCreditIssued?: boolean;
@@ -48,6 +50,18 @@ export interface Dispute {
   status: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface DisputeHistoryEntry {
+  id: number;
+  disputeId: number;
+  fromStatus?: string;
+  toStatus?: string;
+  action?: string;
+  reasonCode?: string;
+  actor?: string;
+  actorRole?: string;
+  changedAt?: string;
 }
 
 export interface ReviewDisputeRequest {
@@ -171,6 +185,14 @@ export class TransactionDisputeService {
           headers: this.getHeaders(),
         })
         .pipe(map((response) => response?.content ?? [])),
+    );
+  }
+
+  getDisputeHistory(disputeId: number): Observable<DisputeHistoryEntry[]> {
+    return this.requestWithRetry(
+      this.http.get<DisputeHistoryEntry[]>(`${this.apiUrl}/disputes/${disputeId}/history`, {
+        headers: this.getHeaders(),
+      }),
     );
   }
 
