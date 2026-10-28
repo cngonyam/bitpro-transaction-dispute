@@ -27,10 +27,11 @@ public class LocalDateTimeAttributeConverter implements AttributeConverter<Local
 
         String normalized = dbData.trim();
         if (normalized.matches("^-?\\d+$")) {
-            long epochMillis = Long.parseLong(normalized);
-            return Instant.ofEpochMilli(epochMillis)
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime();
+            long epochValue = Long.parseLong(normalized);
+            Instant instant = Math.abs(epochValue) >= 1_000_000_000_000L
+                    ? Instant.ofEpochMilli(epochValue)
+                    : Instant.ofEpochSecond(epochValue);
+            return instant.atZone(ZoneId.systemDefault()).toLocalDateTime();
         }
 
         try {

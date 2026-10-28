@@ -38,10 +38,10 @@ class ProfileDisputeIntegrationTest {
     void shouldAttachCurrentProfileToNewDispute() {
         try {
             SecurityContextHolder.getContext().setAuthentication(
-                    new UsernamePasswordAuthenticationToken("dev-user", "dev-pass123"));
+                    new UsernamePasswordAuthenticationToken("agent-user", "agent-pass123"));
 
             UserProfile profile = UserProfile.builder()
-                    .username("dev-user")
+                    .username("agent-user")
                     .fullName("Ndumiso Ngonyama")
                     .role("Dispute Operations Lead")
                     .email("ndumiso.ngonyama@bitpro.co.za")
@@ -50,7 +50,7 @@ class ProfileDisputeIntegrationTest {
                     .region("Johannesburg, South Africa")
                     .build();
 
-            userProfileService.saveProfile("dev-user", profile);
+            userProfileService.saveProfile("agent-user", profile);
 
             transactionRepository.save(Transaction.builder()
                     .transactionReference("TXN-10001")

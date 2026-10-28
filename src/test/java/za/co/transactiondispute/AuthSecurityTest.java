@@ -40,8 +40,8 @@ class AuthSecurityTest {
     @Test
     void loginReturnsJwtToken() throws Exception {
         Map<String, String> payload = Map.of(
-                "username", "dev-user",
-                "password", "dev-pass123"
+                "username", "agent-user",
+                "password", "agent-pass123"
         );
 
         mockMvc.perform(post("/api/v1/auth/login")
@@ -55,7 +55,7 @@ class AuthSecurityTest {
     void jwtAuthorizationAllowsProtectedEndpoint() throws Exception {
         String token = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"dev-user\",\"password\":\"dev-pass123\"}"))
+                        .content("{\"username\":\"agent-user\",\"password\":\"agent-pass123\"}"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
@@ -64,6 +64,23 @@ class AuthSecurityTest {
         String jwt = objectMapper.readTree(token).get("token").asText();
 
         mockMvc.perform(get("/api/v1/transactions")
+                        .header("Authorization", "Bearer " + jwt))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void customerUserCanAccessDisputesReadEndpoint() throws Exception {
+        String token = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"customer-user\",\"password\":\"customer-pass123\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String jwt = objectMapper.readTree(token).get("token").asText();
+
+        mockMvc.perform(get("/api/v1/disputes")
                         .header("Authorization", "Bearer " + jwt))
                 .andExpect(status().isOk());
     }
@@ -104,7 +121,7 @@ class AuthSecurityTest {
     private String loginAndGetJwt() throws Exception {
         String token = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"dev-user\",\"password\":\"dev-pass123\"}"))
+                        .content("{\"username\":\"agent-user\",\"password\":\"agent-pass123\"}"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

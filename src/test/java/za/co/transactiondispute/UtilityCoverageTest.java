@@ -1,5 +1,6 @@
 package za.co.transactiondispute;
 
+import jakarta.persistence.Convert;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,11 +10,14 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import za.co.transactiondispute.config.LocalDateTimeAttributeConverter;
 import za.co.transactiondispute.config.OpenApiConfig;
+import za.co.transactiondispute.entity.DisputeIdempotency;
 import za.co.transactiondispute.entity.Transaction;
 import za.co.transactiondispute.enums.TransactionType;
 import za.co.transactiondispute.mapper.TransactionMapper;
 import za.co.transactiondispute.middleware.RequestLoggingFilter;
 import za.co.transactiondispute.utility.DateUtil;
+
+import java.lang.reflect.Field;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -57,9 +61,16 @@ class UtilityCoverageTest {
         assertNull(converter.convertToDatabaseColumn(null));
         assertNull(converter.convertToEntityAttribute(null));
         assertNull(converter.convertToEntityAttribute("   "));
-        assertNotNull(converter.convertToEntityAttribute(String.valueOf(now.toEpochSecond(java.time.ZoneOffset.UTC))));
+        long epochMillis = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long epochSeconds = now.atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
+        assertEquals(now, converter.convertToEntityAttribute(String.valueOf(epochMillis)));
+        assertEquals(now, converter.convertToEntityAttribute(String.valueOf(epochSeconds)));
         assertEquals(now, converter.convertToEntityAttribute("2024-01-02T03:04:05"));
         assertThrows(IllegalArgumentException.class, () -> converter.convertToEntityAttribute("bad-value"));
+
+        Field createdAtField = DisputeIdempotency.class.getDeclaredField("createdAt");
+        assertNotNull(createdAtField.getAnnotation(Convert.class));
+        assertEquals(LocalDateTimeAttributeConverter.class, createdAtField.getAnnotation(Convert.class).converter());
 
         OpenApiConfig openApiConfig = new OpenApiConfig();
         assertEquals("Transaction Dispute API", openApiConfig.transactionDisputeOpenAPI().getInfo().getTitle());

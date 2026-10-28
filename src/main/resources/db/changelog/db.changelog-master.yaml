@@ -165,6 +165,18 @@ databaseChangeLog:
                   name: decision_outcome
                   type: VARCHAR(255)
               - column:
+                  name: reviewer_username
+                  type: VARCHAR(255)
+              - column:
+                  name: approved_by_username
+                  type: VARCHAR(255)
+              - column:
+                  name: review_decision
+                  type: VARCHAR(255)
+              - column:
+                  name: approval_note
+                  type: VARCHAR(255)
+              - column:
                   name: status
                   type: VARCHAR(255)
                   constraints:
@@ -222,7 +234,86 @@ databaseChangeLog:
                   type: VARCHAR(255)
 
   - changeSet:
-      id: 005-insert-account-data
+      id: 005-create-dispute-idempotency-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: dispute_idempotency
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    defaultValueNumeric: 0
+              - column:
+                  name: username
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: operation
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: idempotency_key
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: request_hash
+                  type: VARCHAR(1024)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: response_hash
+                  type: VARCHAR(1024)
+              - column:
+                  name: dispute_id
+                  type: BIGINT
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: uk_dispute_idempotency_user_operation_key
+            tableName: dispute_idempotency
+            unique: true
+            columns:
+              - column:
+                  name: username
+              - column:
+                  name: operation
+              - column:
+                  name: idempotency_key
+
+  - changeSet:
+      id: 006-add-submitted-by-username-to-disputes
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: disputes
+            columns:
+              - column:
+                  name: submitted_by_username
+                  type: VARCHAR(255)
+
+  - changeSet:
+      id: 007-insert-account-data
       author: Ndumiso Ngonyama
       changes:
         - insert:
@@ -248,7 +339,7 @@ databaseChangeLog:
                   value: ACTIVE
 
   - changeSet:
-      id: 006-insert-seed-transactions
+      id: 008-insert-seed-transactions
       author: Ndumiso Ngonyama
       changes:
         - insert:
@@ -345,7 +436,7 @@ databaseChangeLog:
                   value: Debit order received
 
   - changeSet:
-      id: 007-add-version-columns
+      id: 009-add-version-columns
       author: Ndumiso Ngonyama
       changes:
         - addColumn:
@@ -368,7 +459,7 @@ databaseChangeLog:
                     nullable: false
 
   - changeSet:
-      id: 008-backfill-version-values
+      id: 010-backfill-version-values
       author: Ndumiso Ngonyama
       changes:
         - update:
@@ -387,7 +478,7 @@ databaseChangeLog:
             where: version IS NULL
 
   - changeSet:
-      id: 009-add-dispute-version-column
+      id: 011-add-dispute-version-column
       author: Ndumiso Ngonyama
       changes:
         - addColumn:
@@ -408,7 +499,7 @@ databaseChangeLog:
             where: version IS NULL
 
   - changeSet:
-      id: 010-create-dispute-status-history-table
+      id: 012-create-dispute-status-history-table
       author: Ndumiso Ngonyama
       changes:
         - createTable:
@@ -468,8 +559,9 @@ databaseChangeLog:
                   name: changed_at
 
   - changeSet:
-      id: 011-deduplicate-reference-values
+      id: 013-ensure-transaction-and-dispute-reference-uniqueness
       author: Ndumiso Ngonyama
+      validCheckSum: 9:24cda71a3cc59714d9183fb66c73bfc8
       changes:
         - createIndex:
             indexName: idx_transactions_transaction_reference_unique
@@ -485,3 +577,4 @@ databaseChangeLog:
             columns:
               - column:
                   name: transaction_reference
+

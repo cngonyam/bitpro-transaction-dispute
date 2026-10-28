@@ -6,6 +6,8 @@ import za.co.transactiondispute.entity.UserProfile;
 import za.co.transactiondispute.repository.UserProfileRepository;
 import za.co.transactiondispute.service.UserProfileService;
 
+import java.util.Locale;
+
 @Service
 public class UserProfileServiceImpl implements UserProfileService {
 
@@ -32,7 +34,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 });
 
         existing.setFullName(profile.getFullName() == null || profile.getFullName().isBlank() ? existing.getFullName() : profile.getFullName());
-        existing.setRole(profile.getRole() == null || profile.getRole().isBlank() ? existing.getRole() : profile.getRole());
+        existing.setRole(existing.getRole() == null || existing.getRole().isBlank() ? profile.getRole() : existing.getRole());
         existing.setEmail(profile.getEmail() == null || profile.getEmail().isBlank() ? existing.getEmail() : profile.getEmail());
         existing.setPhone(profile.getPhone() == null || profile.getPhone().isBlank() ? existing.getPhone() : profile.getPhone());
         existing.setDepartment(profile.getDepartment() == null || profile.getDepartment().isBlank() ? existing.getDepartment() : profile.getDepartment());
@@ -42,16 +44,33 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private UserProfile createDefaultProfile(String username) {
+        String normalizedUsername = username == null ? "" : username.trim();
+        String mappedRole = defaultRoleForUsername(normalizedUsername);
+        String defaultFullName = "Dispute Operations " + mappedRole;
+        String defaultEmail = normalizedUsername.isBlank() ? "ops@bitpro.co.za" : normalizedUsername.toLowerCase(Locale.ROOT) + "@bitpro.co.za";
+
         UserProfile defaultProfile = UserProfile.builder()
-                .username(username)
-                .fullName("Ndumiso Ngonyama")
-                .role("Dispute Operations Lead")
-                .email("ndumiso.ngonyama@bitpro.co.za")
+                .username(normalizedUsername)
+                .fullName(defaultFullName)
+                .role(mappedRole)
+                .email(defaultEmail)
                 .phone("+27 11 555 0123")
                 .department("Customer Operations")
                 .region("Johannesburg, South Africa")
                 .build();
 
         return userProfileRepository.save(defaultProfile);
+    }
+
+    private String defaultRoleForUsername(String username) {
+        String normalized = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
+
+        if (normalized.contains("admin")) {
+            return "ADMIN";
+        }
+        if (normalized.contains("agent") || normalized.equals("agent-user")) {
+            return "AGENT";
+        }
+        return "CUSTOMER";
     }
 }

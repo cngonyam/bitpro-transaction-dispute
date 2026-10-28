@@ -6,6 +6,9 @@ services:
     container_name: dispute-backend
     environment:
       SPRING_DATASOURCE_URL: jdbc:sqlite:/data/transaction-dispute.db
+      APP_SECURITY_USERNAME: agent-user
+      APP_SECURITY_PASSWORD: agent-pass123
+      APP_ACCOUNT_MAPPINGS: agent-user=ACC-1001,customer-user=ACC-1001
     volumes:
       - sqlite-data:/data
     healthcheck:

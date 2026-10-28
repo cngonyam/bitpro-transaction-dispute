@@ -38,12 +38,25 @@ export interface Dispute {
   disputeType?: 'CHARGEBACK';
   description?: string;
   assignedToFullName?: string;
+  reviewerUsername?: string;
+  approvedByUsername?: string;
+  reviewDecision?: string;
+  approvalNote?: string;
   provisionalCreditIssued?: boolean;
   merchantEvidenceProvided?: boolean;
   decisionOutcome?: string;
   status: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface ReviewDisputeRequest {
+  decision: string;
+  reviewNote?: string;
+}
+
+export interface ApproveDisputeRequest {
+  approvalNote: string;
 }
 
 export interface ReverseDisputeRequest {
@@ -159,6 +172,23 @@ export class TransactionDisputeService {
         })
         .pipe(map((response) => response?.content ?? [])),
     );
+  }
+
+  reviewDispute(disputeId: number, decision: string, reviewNote?: string): Observable<Dispute> {
+    return this.http.post<Dispute>(`${this.apiUrl}/disputes/${disputeId}/review`, {
+      decision,
+      reviewNote,
+    }, {
+      headers: this.getHeaders(),
+    });
+  }
+
+  approveDispute(disputeId: number, approvalNote: string): Observable<Dispute> {
+    return this.http.post<Dispute>(`${this.apiUrl}/disputes/${disputeId}/approve`, {
+      approvalNote,
+    }, {
+      headers: this.getHeaders(),
+    });
   }
 
   reverseDispute(disputeId: number, reasonCode: string): Observable<Dispute> {

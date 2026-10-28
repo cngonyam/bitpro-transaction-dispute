@@ -157,12 +157,12 @@ docker compose down
 
 ## Local credentials
 
-The app is seeded with a local demo user:
+The app is seeded with demo users for local testing:
 
-- Username: `dev-user`
-- Password: `dev-pass123`
+- Default frontend sign-in: `customer-user` / `customer-pass123`
+- Agent workflow user: `agent-user` / `agent-pass123`
 
-The frontend uses these credentials for login during local testing.
+The frontend defaults to the customer account so the standard local demo flow opens with a customer session, while the agent account remains available for dispute review and reversal actions.
 
 ## API endpoints
 
