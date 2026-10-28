@@ -1,41 +1,41 @@
 # Bitpro Transaction Dispute Portal
 
-A full-stack dispute management portal for Bitpro, built with a Spring Boot API and Angular frontend. The backend uses SQLite and Liquibase for local persistence, and the dispute flow is aligned to a real money-movement workflow rather than a state-only mock.
+A full-stack dispute management portal for Bitpro, built with a Spring Boot API and Angular frontend. The application models a realistic banking dispute workflow with review, approval, ledger updates, and reversal safeguards rather than a static status mock.
 
 ## Overview
 
 The portal supports:
 
-- reviewing the current customer account and transaction history
-- submitting a dispute for a transaction
-- tracking dispute lifecycle states through review and resolution
-- reversing a dispute with an idempotency key
-- creating a real credit ledger entry when a dispute is reversed
-- recalculating account balances after each relevant ledger change
+- customer account and transaction review
+- dispute submission for eligible debit transactions
+- dispute review progression from Open to In Review
+- approval by authorised lead/admin users to issue provisional credit
+- reversal processing with idempotency protection
+- ledger-aware balance recalculation after critical financial actions
+- durable status history and audit-friendly actor metadata
 
-## Business behavior
+## Business rules
 
-This application is intentionally modeled as a ledger-aware dispute workflow:
+This project is deliberately closer to a production banking workflow than a toy demo:
 
-- a dispute is created for a specific transaction and account
-- a reversal is only allowed for valid dispute states
-- reversing a dispute creates a dedicated credit transaction entry
-- the affected account balances are recalculated from the full transaction ledger
-- duplicate requests are protected with idempotency keys
-
-This is a meaningful improvement over simplistic “status-only” dispute reversal, which would not reflect actual financial movement.
+- disputes are created only for valid customer-owned transactions
+- review and approval are enforced by role and workflow state
+- only approved disputes can be reversed
+- duplicate reversal attempts are blocked
+- account balances are recalculated from the transaction ledger after reversal
+- review and approval history is recorded to support auditability
 
 ## Tech stack
 
 ### Backend
 - Java 21
 - Spring Boot 3.3.x
-- Spring Web
+- Spring Web / MVC
 - Spring Data JPA
 - Spring Security + JWT
 - SQLite with Liquibase migrations
-- Swagger / OpenAPI
 - Spring Boot Actuator
+- OpenAPI / Swagger UI
 
 ### Frontend
 - Angular 22
@@ -57,49 +57,54 @@ bitpro-transaction-dispute/
 │  ├─ package.json
 │  └─ tsconfig.json
 ├─ pom.xml
-├─ docker-compose.yml
 ├─ Dockerfile
-├─ transaction-dispute.db
+├─ docker-compose.yml
 ├─ README.md
+├─ transaction-dispute.db
 ├─ target/
 └─ frontend/Dockerfile
 ```
 
-## Quick start
+## Prerequisites
 
-### Prerequisites
 - Java 21
 - Maven 3.9+
 - Node.js 22+
 - npm
 
-### 1. Start the backend
+## Local startup
 
-From the project root:
+### 1. Start the backend from the project root
 
-```bash
-mvn spring-boot:run
-```
+For the verified local run in this workspace, use the dev profile and port 8083:
 
-For a fresh local DB rebuild, remove the SQLite file before starting:
-
-```bash
-rm transaction-dispute.db
-mvn spring-boot:run
-```
-
-On Windows PowerShell:
+#### PowerShell
 
 ```powershell
-Remove-Item transaction-dispute.db -Force
+Set-Location 'C:\Projects\bitpro\bitpro-transaction-dispute'
+Remove-Item -Path '.\transaction-dispute.db' -Force -ErrorAction SilentlyContinue
+$env:SPRING_PROFILES_ACTIVE='dev'
+$env:APP_SECURITY_USERNAME='agent-user'
+$env:APP_SECURITY_PASSWORD='agent-pass123'
+$env:SERVER_PORT='8083'
 mvn spring-boot:run
 ```
 
-The API will be available at:
+#### Bash
 
-- Backend: `http://localhost:8082`
-- Health check: `http://localhost:8082/actuator/health`
-- Swagger UI: `http://localhost:8082/swagger-ui.html`
+```bash
+cd /c/Projects/bitpro/bitpro-transaction-dispute
+rm -f transaction-dispute.db
+SPRING_PROFILES_ACTIVE=dev APP_SECURITY_USERNAME=agent-user APP_SECURITY_PASSWORD=agent-pass123 SERVER_PORT=8083 mvn spring-boot:run
+```
+
+The backend is exposed at:
+
+- API: http://localhost:8083
+- Health check: http://localhost:8083/actuator/health
+- Swagger UI: http://localhost:8083/swagger-ui.html
+
+If you are running a fresh local DB, deleting the SQLite file before startup ensures the schema and seed data are rebuilt cleanly.
 
 ### 2. Start the frontend
 
@@ -111,36 +116,34 @@ npm install
 npm start -- --host 0.0.0.0 --port 4200
 ```
 
-Open the app at:
+Open the app here:
 
 ```text
 http://localhost:4200
 ```
 
-### 3. Build the frontend
+### 3. Production-style build check
 
 ```bash
 cd frontend
 npm run build
 ```
 
-## Docker deployment
+## Docker
 
-The repository also supports a container-based local stack.
+This project also supports a containerized stack.
 
-### Build and run with Docker Compose
-
-From the project root:
+### Build and run
 
 ```bash
 docker compose up --build -d
 ```
 
-The app is exposed as:
+Typical endpoints:
 
-- Frontend: `http://localhost:8080`
-- Backend: `http://localhost:8082`
-- Swagger UI: `http://localhost:8082/swagger-ui.html`
+- Frontend: http://localhost:8080
+- Backend: http://localhost:8082
+- Swagger UI: http://localhost:8082/swagger-ui.html
 
 To stop the stack:
 
@@ -148,59 +151,56 @@ To stop the stack:
 docker compose down
 ```
 
-### Docker files included
+## Local users
 
-- `Dockerfile` for the backend
-- `docker-compose.yml` for orchestration
-- `frontend/Dockerfile` for the Angular app
-- `frontend/nginx.conf` for reverse proxying frontend requests to the backend
+The app includes seeded users for local testing:
 
-## Local credentials
+- agent-user / agent-pass123
+- admin-user / admin-pass123
+- lead-user / lead-pass123
+- customer-user / customer-pass123
 
-The app is seeded with demo users for local testing:
+### Workflow notes
 
-- Default frontend sign-in: `customer-user` / `customer-pass123`
-- Agent workflow user: `agent-user` / `agent-pass123`
-
-The frontend defaults to the customer account so the standard local demo flow opens with a customer session, while the agent account remains available for dispute review and reversal actions.
+- Customer users can submit disputes for their own account.
+- Lead users and admin users are permitted to review and approve disputes in the review stage.
+- A plain agent user is blocked from approving unless the business policy specifically treats them as a lead-level approver.
 
 ## API endpoints
 
-Base URL for direct backend access:
+Base URL:
 
 ```text
-http://localhost:8082/api/v1
+http://localhost:8083/api/v1
 ```
 
 Key endpoints:
 
-- `POST /auth/login`
-- `GET /profile`
-- `GET /accounts`
-- `GET /accounts/{id}`
-- `POST /accounts`
-- `GET /transactions`
-- `GET /transactions/{reference}`
-- `POST /transactions`
-- `GET /disputes`
-- `GET /disputes/{id}`
-- `POST /disputes`
-- `POST /disputes/{id}/reverse`
-- `GET /actuator/health`
+- POST /auth/login
+- GET /profile
+- GET /accounts
+- GET /transactions
+- GET /disputes
+- GET /disputes/{id}
+- POST /disputes
+- POST /disputes/{id}/review
+- POST /disputes/{id}/approve
+- POST /disputes/{id}/reverse
+- GET /actuator/health
 
 ### Idempotency
 
-Create and reverse dispute requests support an `X-Idempotency-Key` header. This prevents accidental duplicate execution of a financial action.
+Create and reverse dispute actions support an `X-Idempotency-Key` header to protect against accidental duplicate financial requests.
 
 ## Database
 
-The local SQLite database lives at the project root:
+The local SQLite database is created at the project root:
 
 ```text
 transaction-dispute.db
 ```
 
-You can inspect the data directly with SQLite:
+Inspect it with SQLite or Python when needed:
 
 ```bash
 sqlite3 transaction-dispute.db "SELECT * FROM accounts;"
@@ -208,45 +208,32 @@ sqlite3 transaction-dispute.db "SELECT * FROM transactions;"
 sqlite3 transaction-dispute.db "SELECT * FROM disputes;"
 ```
 
-If `sqlite3` is not installed, use Python instead:
-
-```bash
-python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM accounts LIMIT 10').fetchall())"
-python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM transactions LIMIT 10').fetchall())"
-python -c "import sqlite3; conn=sqlite3.connect('transaction-dispute.db'); print(conn.execute('SELECT * FROM disputes LIMIT 10').fetchall())"
-```
-
-Schema and seed data are managed via Liquibase under:
+Schema and seed management are handled with Liquibase under:
 
 ```text
 src/main/resources/db/changelog/
 ```
 
-## Liquibase and clean reset
+## Clean reset
 
-This project uses Liquibase for schema evolution. The standard workflow is:
-
-1. Add a new changeSet to the master changelog file:
-
-```text
-src/main/resources/db/changelog/db.changelog-master.yaml
-```
-
-2. Use a unique incremental changeSet id.
-
-3. Restart the backend so Spring Boot applies the pending migration.
-
-```bash
-mvn spring-boot:run
-```
-
-### Clean reset
-
-If the database is stale or the schema needs to be rebuilt from scratch:
+If the database becomes stale or the schema needs to be rebuilt:
 
 ```bash
 rm transaction-dispute.db
 mvn spring-boot:run
+```
+
+On PowerShell:
+
+```powershell
+Remove-Item transaction-dispute.db -Force
+mvn spring-boot:run
+```
+
+## Notes
+
+The project has been validated against the dispute service regression suite, including the lead-user approval path for disputes already in review. This is the expected operational flow for a lead or admin to approve a disputed item before reversal processing.
+
 ```
 
 On Windows PowerShell:

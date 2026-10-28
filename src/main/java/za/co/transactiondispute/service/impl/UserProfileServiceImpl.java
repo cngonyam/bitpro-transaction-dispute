@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 import za.co.transactiondispute.entity.UserProfile;
 import za.co.transactiondispute.repository.UserProfileRepository;
 import za.co.transactiondispute.service.UserProfileService;
+import za.co.transactiondispute.util.UserRoles;
 
 import java.util.Locale;
 
@@ -34,7 +35,13 @@ public class UserProfileServiceImpl implements UserProfileService {
                 });
 
         existing.setFullName(profile.getFullName() == null || profile.getFullName().isBlank() ? existing.getFullName() : profile.getFullName());
-        existing.setRole(existing.getRole() == null || existing.getRole().isBlank() ? profile.getRole() : existing.getRole());
+
+        String canonicalRole = UserRoles.canonicalize(
+                profile.getRole() != null ? profile.getRole() : existing.getRole(),
+                username
+        );
+        existing.setRole(canonicalRole);
+
         existing.setEmail(profile.getEmail() == null || profile.getEmail().isBlank() ? existing.getEmail() : profile.getEmail());
         existing.setPhone(profile.getPhone() == null || profile.getPhone().isBlank() ? existing.getPhone() : profile.getPhone());
         existing.setDepartment(profile.getDepartment() == null || profile.getDepartment().isBlank() ? existing.getDepartment() : profile.getDepartment());
@@ -63,14 +70,6 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private String defaultRoleForUsername(String username) {
-        String normalized = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
-
-        if (normalized.contains("admin")) {
-            return "ADMIN";
-        }
-        if (normalized.contains("agent") || normalized.equals("agent-user")) {
-            return "AGENT";
-        }
-        return "CUSTOMER";
+        return UserRoles.defaultRoleForUsername(username);
     }
 }

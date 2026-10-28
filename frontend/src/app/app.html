@@ -30,8 +30,8 @@
         </label>
 
         <div class="credential-hint">
-          <span>Demo account</span>
-          <strong>customer-user / customer-pass123</strong>
+          <span>Demo accounts</span>
+          <strong>admin-user / admin-pass123 · agent-user / agent-pass123 · lead-user / lead-pass123 · customer-user / customer-pass123</strong>
         </div>
 
         <button type="submit" class="primary-button" [disabled]="isLoggingIn">
@@ -312,6 +312,37 @@
                     <div><span>Reason</span><strong>{{ selectedDispute.reasonCode }}</strong></div>
                     <div><span>Managed by</span><strong>{{ selectedDispute.assignedToFullName || 'Unassigned' }}</strong></div>
                     <div><span>Created</span><strong>{{ formatDate(selectedDispute.createdAt) }}</strong></div>
+                    <div><span>Reversed by</span><strong>{{ selectedDispute.reversedByUsername || '—' }}</strong></div>
+                    <div><span>Reversal role</span><strong>{{ selectedDispute.reversedByRole || '—' }}</strong></div>
+                  </div>
+
+                  <div class="status-detail-section">
+                    <h4>Audit trail</h4>
+                    @if (disputeHistory.length === 0) {
+                      <p class="muted-text">No audit events recorded yet.</p>
+                    } @else {
+                      <div class="history-list">
+                        @for (event of disputeHistory; track event.id) {
+                          <div class="history-item">
+                            <div class="history-head">
+                              <strong>{{ event.action || 'Action' }}</strong>
+                              <span>{{ formatDate(event.changedAt) }}</span>
+                            </div>
+                            <div class="history-meta">
+                              <span>Actor: {{ event.actor || 'Unknown' }}</span>
+                              <span>Role: {{ event.actorRole || 'Unknown' }}</span>
+                            </div>
+                            <div class="history-meta">
+                              <span>From: {{ event.fromStatus || '—' }}</span>
+                              <span>To: {{ event.toStatus || '—' }}</span>
+                            </div>
+                            <div class="history-meta">
+                              <span>Reason: {{ event.reasonCode || '—' }}</span>
+                            </div>
+                          </div>
+                        }
+                      </div>
+                    }
                   </div>
 
                   <div class="reverse-action-box">

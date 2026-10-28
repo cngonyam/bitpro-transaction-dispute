@@ -26,6 +26,8 @@ public class DisputeResponse {
     private String assignedToFullName;
     private String reviewerUsername;
     private String approvedByUsername;
+    private String reversedByUsername;
+    private String reversedByRole;
     private String reviewDecision;
     private String approvalNote;
     private Boolean provisionalCreditIssued;

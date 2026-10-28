@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
-import { AccountSummary, Dispute, DisputeCreateRequest, Transaction, TransactionDisputeService, UserProfile } from './transaction-dispute.service';
+import { AccountSummary, Dispute, DisputeCreateRequest, DisputeHistoryEntry, Transaction, TransactionDisputeService, UserProfile } from './transaction-dispute.service';
 
 export type DashboardTab = 'transactions' | 'new-dispute' | 'track-dispute' | 'dispute-history' | 'profile';
 
@@ -26,6 +26,7 @@ export class App implements OnInit {
   accountSummary: AccountSummary | null = null;
   selectedTransaction: Transaction | null = null;
   selectedDispute: Dispute | null = null;
+  disputeHistory: DisputeHistoryEntry[] = [];
   reverseReason = '';
   reviewDecision = 'APPROVE';
   reviewNote = '';
@@ -82,7 +83,7 @@ export class App implements OnInit {
       return 'ADMIN';
     }
 
-    if (normalized.includes('agent')) {
+    if (normalized.includes('agent') || normalized.includes('lead') || normalized.includes('operations') || normalized.includes('ops')) {
       return 'AGENT';
     }
 
@@ -93,7 +94,14 @@ export class App implements OnInit {
     const profileRole = (this.profile?.role ?? '').toUpperCase();
     const loginRole = this.inferRoleForUsername(this.loginForm.username).toUpperCase();
 
-    return profileRole.includes('AGENT') || profileRole.includes('ADMIN') || loginRole.includes('AGENT') || loginRole.includes('ADMIN');
+    return profileRole.includes('AGENT')
+      || profileRole.includes('ADMIN')
+      || profileRole.includes('LEAD')
+      || profileRole.includes('OPERATIONS')
+      || loginRole.includes('AGENT')
+      || loginRole.includes('ADMIN')
+      || loginRole.includes('LEAD')
+      || loginRole.includes('OPERATIONS');
   }
 
   private extractApiMessages(payload: unknown): string[] {
@@ -362,7 +370,17 @@ export class App implements OnInit {
     this.reviewDecision = dispute.reviewDecision || 'APPROVE';
     this.reviewNote = dispute.reviewDecision ? `Reviewed: ${dispute.reviewDecision}` : '';
     this.approvalNote = dispute.approvalNote || '';
+    this.disputeHistory = [];
     this.activeTab = 'track-dispute';
+
+    this.api.getDisputeHistory(dispute.id).subscribe({
+      next: (history) => {
+        this.disputeHistory = history ?? [];
+      },
+      error: () => {
+        this.disputeHistory = [];
+      },
+    });
   }
 
   reviewDisputeAction(): void {
@@ -436,7 +454,7 @@ export class App implements OnInit {
     }
 
     if (!this.canReverseDisputes()) {
-      this.errorMessage = 'Only dispute agents can reverse a dispute. Please log in with an agent account.';
+      this.errorMessage = 'Only authorised dispute agents or administrators can reverse a dispute.';
       return;
     }
 

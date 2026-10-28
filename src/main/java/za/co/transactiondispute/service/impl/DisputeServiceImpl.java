@@ -8,6 +8,7 @@ import za.co.transactiondispute.config.CustomerAccountContext;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.entity.Dispute;
+import za.co.transactiondispute.entity.DisputeLedgerEntry;
 import za.co.transactiondispute.entity.DisputeStatusHistory;
 import za.co.transactiondispute.entity.Transaction;
 import za.co.transactiondispute.entity.UserProfile;
@@ -21,12 +22,14 @@ import za.co.transactiondispute.integration.SmsClient;
 import za.co.transactiondispute.repository.AccountRepository;
 import za.co.transactiondispute.entity.DisputeIdempotency;
 import za.co.transactiondispute.repository.DisputeIdempotencyRepository;
+import za.co.transactiondispute.repository.DisputeLedgerEntryRepository;
 import za.co.transactiondispute.repository.DisputeRepository;
 import za.co.transactiondispute.repository.DisputeStatusHistoryRepository;
 import za.co.transactiondispute.repository.TransactionRepository;
 import za.co.transactiondispute.service.DisputeService;
 import za.co.transactiondispute.service.UserProfileService;
 import za.co.transactiondispute.util.BalanceCalculator;
+import za.co.transactiondispute.util.UserRoles;
 import za.co.transactiondispute.validation.DisputeValidator;
 
 import java.math.BigDecimal;
@@ -34,6 +37,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,6 +60,7 @@ public class DisputeServiceImpl implements DisputeService {
     private final UserProfileService userProfileService;
     private final DisputeStatusHistoryRepository disputeStatusHistoryRepository;
     private final DisputeIdempotencyRepository disputeIdempotencyRepository;
+    private final DisputeLedgerEntryRepository disputeLedgerEntryRepository;
     private final Map<String, String> createIdempotencyRequestHashes = new ConcurrentHashMap<>();
     private final Map<String, Dispute> createIdempotencyResponses = new ConcurrentHashMap<>();
     private final Map<String, String> reverseIdempotencyRequestHashes = new ConcurrentHashMap<>();
@@ -69,7 +74,7 @@ public class DisputeServiceImpl implements DisputeService {
                               CustomerAccountContext customerAccountContext,
                               AccountRepository accountRepository,
                               UserProfileService userProfileService) {
-        this(disputeRepository, transactionRepository, disputeValidator, emailClient, smsClient, customerAccountContext, accountRepository, userProfileService, null, null);
+        this(disputeRepository, transactionRepository, disputeValidator, emailClient, smsClient, customerAccountContext, accountRepository, userProfileService, null, null, null);
     }
 
     @Autowired
@@ -83,6 +88,20 @@ public class DisputeServiceImpl implements DisputeService {
                               UserProfileService userProfileService,
                               DisputeStatusHistoryRepository disputeStatusHistoryRepository,
                               DisputeIdempotencyRepository disputeIdempotencyRepository) {
+        this(disputeRepository, transactionRepository, disputeValidator, emailClient, smsClient, customerAccountContext, accountRepository, userProfileService, disputeStatusHistoryRepository, disputeIdempotencyRepository, null);
+    }
+
+    public DisputeServiceImpl(DisputeRepository disputeRepository,
+                              TransactionRepository transactionRepository,
+                              DisputeValidator disputeValidator,
+                              EmailClient emailClient,
+                              SmsClient smsClient,
+                              CustomerAccountContext customerAccountContext,
+                              AccountRepository accountRepository,
+                              UserProfileService userProfileService,
+                              DisputeStatusHistoryRepository disputeStatusHistoryRepository,
+                              DisputeIdempotencyRepository disputeIdempotencyRepository,
+                              DisputeLedgerEntryRepository disputeLedgerEntryRepository) {
         this.disputeRepository = disputeRepository;
         this.transactionRepository = transactionRepository;
         this.disputeValidator = disputeValidator;
@@ -93,6 +112,7 @@ public class DisputeServiceImpl implements DisputeService {
         this.userProfileService = userProfileService;
         this.disputeStatusHistoryRepository = disputeStatusHistoryRepository;
         this.disputeIdempotencyRepository = disputeIdempotencyRepository;
+        this.disputeLedgerEntryRepository = disputeLedgerEntryRepository;
     }
 
     @Override
@@ -109,6 +129,18 @@ public class DisputeServiceImpl implements DisputeService {
                 .or(() -> {
                     throw new ResourceNotFoundException("Dispute not found with id: " + id);
                 });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DisputeStatusHistory> getDisputeHistory(Long disputeId) {
+        if (disputeId == null) {
+            throw new IllegalArgumentException("Dispute id is required");
+        }
+        if (disputeStatusHistoryRepository == null) {
+            return List.of();
+        }
+        return disputeStatusHistoryRepository.findByDisputeIdOrderByChangedAtAsc(disputeId);
     }
 
     @Override
@@ -237,12 +269,14 @@ public class DisputeServiceImpl implements DisputeService {
         if (currentProfile == null) {
             throw new IllegalArgumentException("Authenticated reviewer profile is required.");
         }
+        ensureUserMayReviewDispute(currentProfile);
 
         String normalizedDecision = decision == null ? "" : decision.trim();
         if (normalizedDecision.isBlank()) {
             throw new IllegalArgumentException("A review decision is required.");
         }
 
+        DisputeStatus previousStatus = dispute.getStatus();
         dispute.setReviewerUsername(currentUser);
         dispute.setReviewDecision(normalizedDecision);
         if (reviewNote != null && !reviewNote.trim().isBlank()) {
@@ -252,7 +286,7 @@ public class DisputeServiceImpl implements DisputeService {
         dispute.setUpdatedAt(LocalDateTime.now());
 
         Dispute saved = disputeRepository.save(dispute);
-        appendStatusHistory(saved, dispute.getStatus(), DisputeStatus.IN_REVIEW, "DISPUTE_REVIEWED", normalizedDecision, currentUser);
+        appendStatusHistory(saved, previousStatus, DisputeStatus.IN_REVIEW, "DISPUTE_REVIEWED", normalizedDecision, currentUser);
         return saved;
     }
 
@@ -275,12 +309,14 @@ public class DisputeServiceImpl implements DisputeService {
         if (currentProfile == null) {
             throw new IllegalArgumentException("Authenticated approver profile is required.");
         }
+        ensureUserMayApproveDispute(currentProfile);
 
         String normalizedNote = approvalNote == null ? "" : approvalNote.trim();
         if (normalizedNote.isBlank()) {
             throw new IllegalArgumentException("An approval note is required.");
         }
 
+        DisputeStatus previousStatus = dispute.getStatus();
         dispute.setApprovedByUsername(currentUser);
         dispute.setApprovalNote(normalizedNote);
         dispute.setProvisionalCreditIssued(Boolean.TRUE);
@@ -288,7 +324,7 @@ public class DisputeServiceImpl implements DisputeService {
         dispute.setUpdatedAt(LocalDateTime.now());
 
         Dispute saved = disputeRepository.save(dispute);
-        appendStatusHistory(saved, DisputeStatus.IN_REVIEW, DisputeStatus.PROVISIONAL_CREDIT_ISSUED, "DISPUTE_APPROVED", normalizedNote, currentUser);
+        appendStatusHistory(saved, previousStatus, DisputeStatus.PROVISIONAL_CREDIT_ISSUED, "DISPUTE_APPROVED", normalizedNote, currentUser);
         return saved;
     }
 
@@ -347,6 +383,7 @@ public class DisputeServiceImpl implements DisputeService {
         if (dispute.getApprovedByUsername() == null || dispute.getApprovedByUsername().isBlank()) {
             throw new IllegalArgumentException("Dispute must be approved by an authorised reviewer before reversal.");
         }
+        ensureNoDuplicateReversalPosting(dispute);
         validateDisputeStatusTransition(dispute.getStatus(), DisputeStatus.RESOLVED, "REVERSE");
 
         BigDecimal reversalAmount = dispute.getDisputedAmount() == null ? BigDecimal.ZERO : dispute.getDisputedAmount().abs();
@@ -358,6 +395,8 @@ public class DisputeServiceImpl implements DisputeService {
         DisputeStatus previousStatus = dispute.getStatus();
         dispute.setReasonCode(normalizedReason);
         dispute.setDecisionOutcome(REVERSED);
+        dispute.setReversedByUsername(currentUser);
+        dispute.setReversedByRole(resolveActorRole(currentUser));
         dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setUpdatedAt(LocalDateTime.now());
         String currentDescription = dispute.getDescription() == null ? "" : dispute.getDescription();
@@ -365,6 +404,7 @@ public class DisputeServiceImpl implements DisputeService {
 
         Dispute saved = disputeRepository.save(dispute);
         createReversalLedgerEntry(saved, originalTransaction, normalizedReason);
+        persistDisputeLedgerEntry(saved, originalTransaction, normalizedReason, currentUser);
         appendStatusHistory(saved, previousStatus, saved.getStatus(), "DISPUTE_REVERSED", normalizedReason, currentUserKey());
         persistIdempotency(currentUser, "REVERSE_DISPUTE", idempotencyKey, requestHash, saved);
 
@@ -378,6 +418,17 @@ public class DisputeServiceImpl implements DisputeService {
         return dispute != null && (dispute.getStatus() == DisputeStatus.RESOLVED || REVERSED.equalsIgnoreCase(dispute.getDecisionOutcome()));
     }
 
+    private void ensureNoDuplicateReversalPosting(Dispute dispute) {
+        if (dispute == null || dispute.getId() == null || disputeLedgerEntryRepository == null) {
+            return;
+        }
+
+        boolean reversalAlreadyRecorded = disputeLedgerEntryRepository.existsByDisputeIdAndAction(dispute.getId(), "REVERSED");
+        if (reversalAlreadyRecorded) {
+            throw new DomainConflictException("This dispute already has a reversal ledger entry and cannot be reversed again.");
+        }
+    }
+
     private void ensureUserMayReverseDispute(Dispute dispute) {
         if (dispute == null) {
             throw new IllegalArgumentException("Dispute is required.");
@@ -389,8 +440,25 @@ public class DisputeServiceImpl implements DisputeService {
         }
 
         UserProfile currentProfile = userProfileService.getProfile(currentUsername);
-        if (!isAgentRole(normalizeRole(currentProfile != null ? currentProfile.getRole() : null))) {
-            throw new IllegalArgumentException("Only dispute agents can reverse a dispute.");
+        if (!canAuthorizeOperationalAction(currentProfile)) {
+            throw new IllegalArgumentException("Only authorised dispute agents or administrators can reverse a dispute.");
+        }
+    }
+
+    private void ensureUserMayReviewDispute(UserProfile currentProfile) {
+        if (!canAuthorizeOperationalAction(currentProfile)) {
+            throw new IllegalArgumentException("Only dispute agents or administrators can review disputes.");
+        }
+    }
+
+    private void ensureUserMayApproveDispute(UserProfile currentProfile) {
+        String normalizedRole = normalizeRole(currentProfile != null ? currentProfile.getRole() : null);
+        String currentUsername = currentUserKey();
+        boolean isLeadApprover = UserRoles.isLeadRole(currentProfile != null ? currentProfile.getRole() : null)
+                || (currentUsername != null && currentUsername.toLowerCase(Locale.ROOT).contains("lead"));
+
+        if (!isAdminRole(normalizedRole) && !isLeadApprover) {
+            throw new IllegalArgumentException("Only authorised dispute administrators or lead-level operators can approve disputes.");
         }
     }
 
@@ -426,6 +494,7 @@ public class DisputeServiceImpl implements DisputeService {
             return;
         }
 
+        String actorRole = resolveActorRole(actor);
         DisputeStatusHistory entry = DisputeStatusHistory.builder()
                 .disputeId(dispute.getId())
                 .fromStatus(fromStatus)
@@ -433,9 +502,20 @@ public class DisputeServiceImpl implements DisputeService {
                 .action(action)
                 .reasonCode(reasonCode)
                 .actor(actor)
+                .actorRole(actorRole)
                 .changedAt(LocalDateTime.now())
                 .build();
         disputeStatusHistoryRepository.save(entry);
+    }
+
+    private String resolveActorRole(String username) {
+        if (username == null || username.isBlank()) {
+            return "CUSTOMER";
+        }
+
+        UserProfile profile = userProfileService != null ? userProfileService.getProfile(username) : null;
+        String canonicalRole = UserRoles.canonicalize(profile != null ? profile.getRole() : null, username);
+        return canonicalRole == null || canonicalRole.isBlank() ? UserRoles.defaultRoleForUsername(username) : canonicalRole;
     }
 
     private Transaction createReversalLedgerEntry(Dispute dispute, Transaction originalTransaction, String reasonCode) {
@@ -463,6 +543,32 @@ public class DisputeServiceImpl implements DisputeService {
         Transaction savedReversal = transactionRepository.save(reversalEntry);
         reconcileAccountBalance(dispute.getAccountNumber());
         return savedReversal;
+    }
+
+    private void persistDisputeLedgerEntry(Dispute dispute, Transaction originalTransaction, String reasonCode, String actorUsername) {
+        if (disputeLedgerEntryRepository == null || dispute == null) {
+            return;
+        }
+
+        BigDecimal amount = dispute.getDisputedAmount() == null ? BigDecimal.ZERO : dispute.getDisputedAmount().abs();
+        String currency = originalTransaction != null && originalTransaction.getCurrency() != null ? originalTransaction.getCurrency() : "ZAR";
+        String actorRole = resolveActorRole(actorUsername);
+
+        DisputeLedgerEntry ledgerEntry = DisputeLedgerEntry.builder()
+                .disputeId(dispute.getId())
+                .transactionReference(dispute.getTransactionReference())
+                .accountNumber(dispute.getAccountNumber())
+                .amount(amount)
+                .currency(currency)
+                .action("REVERSED")
+                .actor(actorUsername)
+                .actorRole(actorRole)
+                .description("Dispute reversal for " + dispute.getDisputeId() + " - " + reasonCode)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        disputeLedgerEntryRepository.save(ledgerEntry);
     }
 
     private void reconcileAccountBalance(String accountNumber) {
@@ -583,14 +689,20 @@ public class DisputeServiceImpl implements DisputeService {
     }
 
     private String normalizeRole(String role) {
-        if (role == null || role.isBlank()) {
-            return "";
-        }
-        return role.trim().toUpperCase();
+        return UserRoles.canonicalize(role, null);
     }
 
     private boolean isAgentRole(String normalizedRole) {
-        return normalizedRole.contains("AGENT") || normalizedRole.contains("LEAD") || normalizedRole.contains("ADMIN");
+        return UserRoles.isAgentRole(normalizedRole);
+    }
+
+    private boolean isAdminRole(String normalizedRole) {
+        return UserRoles.isAdminRole(normalizedRole);
+    }
+
+    private boolean canAuthorizeOperationalAction(UserProfile currentProfile) {
+        String normalizedRole = normalizeRole(currentProfile != null ? currentProfile.getRole() : null);
+        return isAgentRole(normalizedRole) || isAdminRole(normalizedRole);
     }
 
     private String currentUserKey() {

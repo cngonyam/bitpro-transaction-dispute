@@ -63,6 +63,12 @@ public class Dispute {
     private String approvedByUsername;
 
     @Column(length = 255)
+    private String reversedByUsername;
+
+    @Column(length = 255)
+    private String reversedByRole;
+
+    @Column(length = 255)
     private String reviewDecision;
 
     @Column(length = 255)

@@ -18,6 +18,7 @@ import za.co.transactiondispute.dto.DisputeResponse;
 import za.co.transactiondispute.dto.ReverseDisputeRequest;
 import za.co.transactiondispute.dto.ReviewDisputeRequest;
 import za.co.transactiondispute.entity.Dispute;
+import za.co.transactiondispute.entity.DisputeStatusHistory;
 import za.co.transactiondispute.service.DisputeService;
 
 import java.net.URI;
@@ -46,6 +47,12 @@ public class DisputeController {
     @GetMapping("/disputes/{id}")
     public ResponseEntity<DisputeResponse> getDispute(@PathVariable Long id) {
         return ResponseEntity.ok(toResponse(disputeService.getDisputeById(id).orElseThrow()));
+    }
+
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @GetMapping("/disputes/{id}/history")
+    public ResponseEntity<List<DisputeStatusHistory>> getDisputeHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(disputeService.getDisputeHistory(id));
     }
 
     public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request) {
@@ -83,7 +90,7 @@ public class DisputeController {
         return ResponseEntity.ok(toResponse(dispute));
     }
 
-    @PreAuthorize("hasRole('AGENT') or hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/disputes/{id}/approve")
     public ResponseEntity<DisputeResponse> approveDispute(@PathVariable Long id,
                                                          @RequestBody ApproveDisputeRequest request) {
@@ -135,6 +142,8 @@ public class DisputeController {
                 .assignedToFullName(dispute.getAssignedToFullName())
                 .reviewerUsername(dispute.getReviewerUsername())
                 .approvedByUsername(dispute.getApprovedByUsername())
+                .reversedByUsername(dispute.getReversedByUsername())
+                .reversedByRole(dispute.getReversedByRole())
                 .reviewDecision(dispute.getReviewDecision())
                 .approvalNote(dispute.getApprovalNote())
                 .provisionalCreditIssued(dispute.getProvisionalCreditIssued())
