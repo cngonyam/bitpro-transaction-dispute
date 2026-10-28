@@ -7,33 +7,33 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import za.co.transactiondispute.dto.ApproveDisputeRequest;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.dto.DisputeResponse;
 import za.co.transactiondispute.dto.ReverseDisputeRequest;
+import za.co.transactiondispute.dto.ReviewDisputeRequest;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.service.DisputeService;
 
 import java.net.URI;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/v1")
 public class DisputeController {
 
     private final DisputeService disputeService;
-    private final Map<String, DisputeResponse> createIdempotencyCache = new ConcurrentHashMap<>();
-    private final Map<String, DisputeResponse> reverseIdempotencyCache = new ConcurrentHashMap<>();
 
     public DisputeController(DisputeService disputeService) {
         this.disputeService = disputeService;
     }
 
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
     @GetMapping("/disputes")
     public Page<DisputeResponse> getDisputes(@PageableDefault(size = 20, sort = "id") Pageable pageable) {
         List<DisputeResponse> disputes = disputeService.getAllDisputes().stream()
@@ -42,6 +42,7 @@ public class DisputeController {
         return pageFromList(disputes, pageable);
     }
 
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
     @GetMapping("/disputes/{id}")
     public ResponseEntity<DisputeResponse> getDispute(@PathVariable Long id) {
         return ResponseEntity.ok(toResponse(disputeService.getDisputeById(id).orElseThrow()));
@@ -51,22 +52,14 @@ public class DisputeController {
         return createDispute(request, "legacy-create-" + java.util.UUID.randomUUID());
     }
 
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
     @PostMapping("/disputes")
     public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request,
                                                        @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
         String resolvedKey = validateIdempotencyKey(idempotencyKey, "Dispute creation");
-        String cacheKey = "create:" + currentUserKey() + ":" + resolvedKey;
-        DisputeResponse cached = createIdempotencyCache.get(cacheKey);
-        if (cached != null) {
-            return ResponseEntity.ok(cached);
-        }
 
         Dispute dispute = disputeService.createDispute(request, resolvedKey);
         DisputeResponse response = toResponse(dispute);
-        DisputeResponse previous = createIdempotencyCache.putIfAbsent(cacheKey, response);
-        if (previous != null) {
-            return ResponseEntity.ok(previous);
-        }
 
         URI location;
         try {
@@ -80,28 +73,39 @@ public class DisputeController {
         return ResponseEntity.created(location).body(response);
     }
 
+    @PreAuthorize("hasRole('AGENT') or hasRole('ADMIN')")
+    @PostMapping("/disputes/{id}/review")
+    public ResponseEntity<DisputeResponse> reviewDispute(@PathVariable Long id,
+                                                       @RequestBody ReviewDisputeRequest request) {
+        String decision = request != null ? request.getDecision() : null;
+        String reviewNote = request != null ? request.getReviewNote() : null;
+        Dispute dispute = disputeService.reviewDispute(id, decision, reviewNote);
+        return ResponseEntity.ok(toResponse(dispute));
+    }
+
+    @PreAuthorize("hasRole('AGENT') or hasRole('ADMIN')")
+    @PostMapping("/disputes/{id}/approve")
+    public ResponseEntity<DisputeResponse> approveDispute(@PathVariable Long id,
+                                                         @RequestBody ApproveDisputeRequest request) {
+        String approvalNote = request != null ? request.getApprovalNote() : null;
+        Dispute dispute = disputeService.approveDispute(id, approvalNote);
+        return ResponseEntity.ok(toResponse(dispute));
+    }
+
     public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id, @RequestBody ReverseDisputeRequest request) {
         return reverseDispute(id, request, "legacy-reverse-" + java.util.UUID.randomUUID());
     }
 
+    @PreAuthorize("hasRole('AGENT') or hasRole('ADMIN')")
     @PostMapping("/disputes/{id}/reverse")
     public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id,
                                                         @RequestBody ReverseDisputeRequest request,
                                                         @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
         String resolvedKey = validateIdempotencyKey(idempotencyKey, "Dispute reversal");
-        String cacheKey = "reverse:" + currentUserKey() + ":" + id + ":" + resolvedKey;
-        DisputeResponse cached = reverseIdempotencyCache.get(cacheKey);
-        if (cached != null) {
-            return ResponseEntity.ok(cached);
-        }
 
         String reasonCode = request != null ? request.getReasonCode() : null;
         Dispute dispute = disputeService.reverseDispute(id, reasonCode, resolvedKey);
         DisputeResponse response = toResponse(dispute);
-        DisputeResponse previous = reverseIdempotencyCache.putIfAbsent(cacheKey, response);
-        if (previous != null) {
-            return ResponseEntity.ok(previous);
-        }
         return ResponseEntity.ok(response);
     }
 
@@ -129,6 +133,10 @@ public class DisputeController {
                 .disputeType(dispute.getDisputeType())
                 .description(dispute.getDescription())
                 .assignedToFullName(dispute.getAssignedToFullName())
+                .reviewerUsername(dispute.getReviewerUsername())
+                .approvedByUsername(dispute.getApprovedByUsername())
+                .reviewDecision(dispute.getReviewDecision())
+                .approvalNote(dispute.getApprovalNote())
                 .provisionalCreditIssued(dispute.getProvisionalCreditIssued())
                 .merchantEvidenceProvided(dispute.getMerchantEvidenceProvided())
                 .decisionOutcome(dispute.getDecisionOutcome())

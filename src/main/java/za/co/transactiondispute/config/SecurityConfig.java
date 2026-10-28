@@ -49,12 +49,17 @@ public class SecurityConfig {
             throw new IllegalStateException("app.security.password must be configured for authentication.");
         }
 
-        UserDetails user = User.withUsername(devUsername)
+        UserDetails agentUser = User.withUsername(devUsername)
                 .password(passwordEncoder.encode(devPassword))
-                .roles("USER")
+                .roles("AGENT")
                 .build();
 
-        return new InMemoryUserDetailsManager(user);
+        UserDetails customerUser = User.withUsername("customer-user")
+                .password(passwordEncoder.encode("customer-pass123"))
+                .roles("CUSTOMER")
+                .build();
+
+        return new InMemoryUserDetailsManager(agentUser, customerUser);
     }
 
     @Bean

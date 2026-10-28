@@ -1,4 +1,5 @@
 import { CommonModule } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
@@ -26,8 +27,13 @@ export class App implements OnInit {
   selectedTransaction: Transaction | null = null;
   selectedDispute: Dispute | null = null;
   reverseReason = '';
+  reviewDecision = 'APPROVE';
+  reviewNote = '';
+  approvalNote = '';
   historyFilter: 'ALL' | 'OPEN' | 'IN_REVIEW' | 'RESOLVED' | 'REVERSED' = 'ALL';
   isSubmitting = false;
+  isReviewingDispute = false;
+  isApprovingDispute = false;
   isReversingDispute = false;
   isLoggingIn = false;
   isLoggedIn = false;
@@ -36,7 +42,7 @@ export class App implements OnInit {
 
   profile: UserProfile = {
     fullName: 'Ndumiso Ngonyama',
-    role: 'Dispute Operations Lead',
+    role: 'AGENT',
     email: 'ndumiso.ngonyama@bitpro.co.za',
     phone: '+27 11 555 0123',
     department: 'Customer Operations',
@@ -44,8 +50,8 @@ export class App implements OnInit {
   };
 
   loginForm: LoginForm = {
-    username: '',
-    password: '',
+    username: 'agent-user',
+    password: 'agent-pass123',
   };
 
   form: DisputeCreateRequest = {
@@ -64,6 +70,89 @@ export class App implements OnInit {
     private api: TransactionDisputeService,
     private cdr: ChangeDetectorRef,
   ) {}
+
+  private inferRoleForUsername(username: string): string {
+    const normalized = (username ?? '').trim().toLowerCase();
+
+    if (!normalized) {
+      return 'CUSTOMER';
+    }
+
+    if (normalized.includes('admin')) {
+      return 'ADMIN';
+    }
+
+    if (normalized.includes('agent')) {
+      return 'AGENT';
+    }
+
+    return 'CUSTOMER';
+  }
+
+  private canReverseDisputes(): boolean {
+    const profileRole = (this.profile?.role ?? '').toUpperCase();
+    const loginRole = this.inferRoleForUsername(this.loginForm.username).toUpperCase();
+
+    return profileRole.includes('AGENT') || profileRole.includes('ADMIN') || loginRole.includes('AGENT') || loginRole.includes('ADMIN');
+  }
+
+  private extractApiMessages(payload: unknown): string[] {
+    const messages = new Set<string>();
+    const keysToInspect = new Set(['message', 'error', 'errors', 'warning', 'warnings', 'detail', 'details', 'title']);
+
+    const visit = (value: unknown): void => {
+      if (value == null) {
+        return;
+      }
+
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) {
+          messages.add(trimmed);
+        }
+        return;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+
+      if (typeof value !== 'object') {
+        return;
+      }
+
+      Object.entries(value as Record<string, unknown>).forEach(([key, nestedValue]) => {
+        if (keysToInspect.has(key)) {
+          visit(nestedValue);
+        }
+      });
+    };
+
+    visit(payload);
+    return Array.from(messages);
+  }
+
+  private resolveApiError(error: unknown, fallback: string): string {
+    const httpError = error as HttpErrorResponse | null;
+    const responseMessages = this.extractApiMessages(httpError?.error ?? httpError);
+
+    if (responseMessages.length > 0) {
+      return responseMessages[0];
+    }
+
+    const rawMessage = httpError?.error?.message ?? httpError?.error?.error ?? httpError?.message ?? '';
+
+    if (typeof rawMessage === 'string' && rawMessage.trim()) {
+      return rawMessage.trim();
+    }
+
+    if (typeof httpError?.error === 'string' && httpError.error.trim()) {
+      return httpError.error.trim();
+    }
+
+    return fallback;
+  }
 
   ngOnInit(): void {
     this.api.clearToken();
@@ -94,15 +183,19 @@ export class App implements OnInit {
       .subscribe({
         next: (response) => {
           this.api.setToken(response.token);
+          this.profile = {
+            ...this.profile,
+            role: this.inferRoleForUsername(response.username),
+          };
           this.isLoggedIn = true;
           this.successMessage = `Welcome back, ${response.username}.`;
 
           this.refreshDashboard();
         },
-        error: () => {
+        error: (error) => {
           this.isLoggedIn = false;
           this.api.clearToken();
-          this.errorMessage = 'Invalid username or password. Please try the dev credentials.';
+          this.errorMessage = this.resolveApiError(error, 'Invalid username or password. Please try the dev credentials.');
         },
       });
   }
@@ -116,8 +209,8 @@ export class App implements OnInit {
         this.transactions = transactions;
         this.cdr.detectChanges();
       },
-      error: () => {
-        this.errorMessage = 'Unable to load transactions right now.';
+      error: (error) => {
+        this.errorMessage = this.resolveApiError(error, 'Unable to load transactions right now.');
       },
     });
 
@@ -129,8 +222,8 @@ export class App implements OnInit {
         }
         this.cdr.detectChanges();
       },
-      error: () => {
-        this.errorMessage = 'Unable to load the portal data right now.';
+      error: (error) => {
+        this.errorMessage = this.resolveApiError(error, 'Unable to load the portal data right now.');
       },
     });
   }
@@ -138,9 +231,14 @@ export class App implements OnInit {
   private loadProfile(): void {
     this.api.getProfile().subscribe({
       next: (profile) => {
-        this.profile = { ...this.profile, ...profile };
+        this.profile = {
+          ...this.profile,
+          ...profile,
+          role: (profile?.role ?? this.inferRoleForUsername(this.loginForm.username)).toUpperCase(),
+        };
       },
-      error: () => {
+      error: (error) => {
+        this.errorMessage = this.resolveApiError(error, 'Unable to load the current profile.');
         this.profile = {
           fullName: 'Ndumiso Ngonyama',
           role: 'Dispute Operations Lead',
@@ -158,8 +256,9 @@ export class App implements OnInit {
       next: (accounts) => {
         this.accountSummary = accounts[0] ?? null;
       },
-      error: () => {
+      error: (error) => {
         this.accountSummary = null;
+        this.errorMessage = this.resolveApiError(error, 'Unable to load the account summary.');
       },
     });
   }
@@ -260,12 +359,84 @@ export class App implements OnInit {
   selectDisputeToTrack(dispute: Dispute): void {
     this.selectedDispute = dispute;
     this.reverseReason = dispute.reasonCode || 'MERCHANT_ERROR';
+    this.reviewDecision = dispute.reviewDecision || 'APPROVE';
+    this.reviewNote = dispute.reviewDecision ? `Reviewed: ${dispute.reviewDecision}` : '';
+    this.approvalNote = dispute.approvalNote || '';
     this.activeTab = 'track-dispute';
+  }
+
+  reviewDisputeAction(): void {
+    if (!this.selectedDispute) {
+      this.errorMessage = 'Please select a dispute to review.';
+      return;
+    }
+
+    if (this.isReviewingDispute) {
+      return;
+    }
+
+    const decision = (this.reviewDecision ?? 'APPROVE').trim() || 'APPROVE';
+    const note = (this.reviewNote ?? '').trim() || 'Reviewed by operations team.';
+
+    this.isReviewingDispute = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    this.api.reviewDispute(this.selectedDispute.id, decision, note).subscribe({
+      next: (updatedDispute) => {
+        this.selectedDispute = updatedDispute;
+        this.reviewDecision = updatedDispute.reviewDecision || decision;
+        this.reviewNote = updatedDispute.reviewDecision ? `Reviewed: ${updatedDispute.reviewDecision}` : '';
+        this.isReviewingDispute = false;
+        this.successMessage = `Dispute ${updatedDispute.disputeId} has been marked for review.`;
+        this.refreshDashboard();
+      },
+      error: (error) => {
+        this.isReviewingDispute = false;
+        this.errorMessage = this.resolveApiError(error, 'Unable to review this dispute right now.');
+      },
+    });
+  }
+
+  approveDisputeAction(): void {
+    if (!this.selectedDispute) {
+      this.errorMessage = 'Please select a dispute to approve.';
+      return;
+    }
+
+    if (this.isApprovingDispute) {
+      return;
+    }
+
+    const note = (this.approvalNote ?? '').trim() || 'Approved by dispute operations lead.';
+
+    this.isApprovingDispute = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    this.api.approveDispute(this.selectedDispute.id, note).subscribe({
+      next: (updatedDispute) => {
+        this.selectedDispute = updatedDispute;
+        this.approvalNote = updatedDispute.approvalNote || note;
+        this.isApprovingDispute = false;
+        this.successMessage = `Dispute ${updatedDispute.disputeId} has been approved and provisional credit issued.`;
+        this.refreshDashboard();
+      },
+      error: (error) => {
+        this.isApprovingDispute = false;
+        this.errorMessage = this.resolveApiError(error, 'Unable to approve this dispute right now.');
+      },
+    });
   }
 
   reverseDispute(): void {
     if (!this.selectedDispute) {
       this.errorMessage = 'Please select a dispute to reverse.';
+      return;
+    }
+
+    if (!this.canReverseDisputes()) {
+      this.errorMessage = 'Only dispute agents can reverse a dispute. Please log in with an agent account.';
       return;
     }
 
@@ -289,11 +460,19 @@ export class App implements OnInit {
         this.reverseReason = updatedDispute.reasonCode || reason;
         this.isReversingDispute = false;
         this.successMessage = `Dispute ${updatedDispute.disputeId} has been reversed and resolved.`;
+
+        const responseWarnings = this.extractApiMessages(updatedDispute);
+        if (responseWarnings.length > 0) {
+          this.errorMessage = responseWarnings.join('. ');
+        } else {
+          this.errorMessage = '';
+        }
+
         this.refreshDashboard();
       },
-      error: () => {
+      error: (error) => {
         this.isReversingDispute = false;
-        this.errorMessage = 'Unable to reverse this dispute. Please try again.';
+        this.errorMessage = this.resolveApiError(error, 'Unable to reverse this dispute. Please try again.');
       },
     });
   }
@@ -370,8 +549,9 @@ export class App implements OnInit {
             this.activeTab = 'track-dispute';
             this.cdr.detectChanges();
           },
-          error: () => {
+          error: (error) => {
             this.selectedDispute = createdDispute ?? this.selectedDispute;
+            this.errorMessage = this.resolveApiError(error, 'Unable to reload the updated dispute list.');
             this.loadAccountSummary();
             this.loadTransactions();
             this.activeTab = 'track-dispute';
@@ -379,9 +559,9 @@ export class App implements OnInit {
           },
         });
       },
-      error: () => {
+      error: (error) => {
         this.isSubmitting = false;
-        this.errorMessage = 'The dispute could not be submitted. Please check the form and try again.';
+        this.errorMessage = this.resolveApiError(error, 'The dispute could not be submitted. Please check the form and try again.');
       },
     });
   }
@@ -393,8 +573,8 @@ export class App implements OnInit {
         this.successMessage = 'Profile updated successfully.';
         this.errorMessage = '';
       },
-      error: () => {
-        this.errorMessage = 'The profile could not be saved right now.';
+      error: (error) => {
+        this.errorMessage = this.resolveApiError(error, 'The profile could not be saved right now.');
       },
     });
   }

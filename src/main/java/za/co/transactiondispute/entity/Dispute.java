@@ -53,6 +53,21 @@ public class Dispute {
     @Column(length = 255)
     private String assignedToFullName;
 
+    @Column(length = 255)
+    private String submittedByUsername;
+
+    @Column(length = 255)
+    private String reviewerUsername;
+
+    @Column(length = 255)
+    private String approvedByUsername;
+
+    @Column(length = 255)
+    private String reviewDecision;
+
+    @Column(length = 255)
+    private String approvalNote;
+
     @Column
     private Boolean provisionalCreditIssued;
 

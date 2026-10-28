@@ -49,13 +49,13 @@ class SecurityCoverageTest {
         setField(jwtService, "secretKey", "transaction-dispute-jwt-secret-change-me");
         setField(jwtService, "jwtExpirationMs", 3_600_000L);
 
-        UserDetails user = User.withUsername("dev-user")
-                .password("dev-pass123")
+        UserDetails user = User.withUsername("agent-user")
+                .password("agent-pass123")
                 .authorities("USER")
                 .build();
 
         String token = jwtService.generateToken(user);
-        assertEquals("dev-user", jwtService.extractUsername(token));
+        assertEquals("agent-user", jwtService.extractUsername(token));
         assertTrue(jwtService.isTokenValid(token, user));
 
         UserDetails other = User.withUsername("other-user")
@@ -83,7 +83,7 @@ class SecurityCoverageTest {
 
         setField(jwtService, "jwtExpirationMs", 3_600_000L);
         UserDetailsService userDetailsService = mock(UserDetailsService.class);
-        when(userDetailsService.loadUserByUsername("dev-user")).thenReturn(user);
+        when(userDetailsService.loadUserByUsername("agent-user")).thenReturn(user);
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService, userDetailsService);
 
         MockHttpServletRequest requestWithoutToken = new MockHttpServletRequest();
@@ -105,7 +105,7 @@ class SecurityCoverageTest {
         filter.doFilter(badRequest, new MockHttpServletResponse(), chain);
         assertNull(SecurityContextHolder.getContext().getAuthentication());
 
-        when(userDetailsService.loadUserByUsername("dev-user")).thenThrow(new org.springframework.security.core.userdetails.UsernameNotFoundException("missing"));
+        when(userDetailsService.loadUserByUsername("agent-user")).thenThrow(new org.springframework.security.core.userdetails.UsernameNotFoundException("missing"));
         MockHttpServletRequest missingUserRequest = new MockHttpServletRequest();
         missingUserRequest.addHeader("Authorization", "Bearer " + validToken);
         filter.doFilter(missingUserRequest, new MockHttpServletResponse(), chain);
@@ -127,11 +127,11 @@ class SecurityCoverageTest {
         setField(jwtService, "secretKey", "transaction-dispute-jwt-secret-change-me");
         setField(jwtService, "jwtExpirationMs", 3_600_000L);
 
-        UserDetails user = User.withUsername("dev-user").password("dev-pass123").authorities("USER").build();
+        UserDetails user = User.withUsername("agent-user").password("agent-pass123").authorities("USER").build();
         String validToken = jwtService.generateToken(user);
 
         UserDetailsService userDetailsService = mock(UserDetailsService.class);
-        when(userDetailsService.loadUserByUsername("dev-user")).thenReturn(user);
+        when(userDetailsService.loadUserByUsername("agent-user")).thenReturn(user);
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtService, userDetailsService);
 
         MockHttpServletRequest requestWithoutBearer = new MockHttpServletRequest();
@@ -148,7 +148,7 @@ class SecurityCoverageTest {
 
         SecurityContextHolder.clearContext();
         UserDetails otherUser = User.withUsername("other-user").password("pass").authorities("USER").build();
-        when(userDetailsService.loadUserByUsername("dev-user")).thenReturn(otherUser);
+        when(userDetailsService.loadUserByUsername("agent-user")).thenReturn(otherUser);
         MockHttpServletRequest requestForDifferentUser = new MockHttpServletRequest();
         requestForDifferentUser.addHeader("Authorization", "Bearer " + validToken);
         filter.doFilter(requestForDifferentUser, new MockHttpServletResponse(), nonBearerChain);
@@ -173,14 +173,14 @@ class SecurityCoverageTest {
         JwtService jwtService = mock(JwtService.class);
         AuthController controller = new AuthController(authenticationManager, jwtService);
 
-        UserDetails user = User.withUsername("dev-user").password("dev-pass123").authorities("USER").build();
-        Authentication authentication = new UsernamePasswordAuthenticationToken(user, "dev-pass123", user.getAuthorities());
+        UserDetails user = User.withUsername("agent-user").password("agent-pass123").authorities("USER").build();
+        Authentication authentication = new UsernamePasswordAuthenticationToken(user, "agent-pass123", user.getAuthorities());
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
         when(jwtService.generateToken(user)).thenReturn("jwt-token");
 
-        ResponseEntity<AuthResponse> result = controller.login(new AuthRequest("dev-user", "dev-pass123"));
+        ResponseEntity<AuthResponse> result = controller.login(new AuthRequest("agent-user", "agent-pass123"));
         assertEquals("jwt-token", result.getBody().token());
-        assertEquals("dev-user", result.getBody().username());
+        assertEquals("agent-user", result.getBody().username());
 
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/test");

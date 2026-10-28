@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   application:
     name: transaction-dispute-api
   datasource:
@@ -23,7 +23,7 @@ app:
   security:
     username: ${APP_SECURITY_USERNAME:}
     password: ${APP_SECURITY_PASSWORD:}
-  account-mappings: ${APP_ACCOUNT_MAPPINGS:}
+  account-mappings: ${APP_ACCOUNT_MAPPINGS:agent-user=ACC-1001,customer-user=ACC-1001}
 
 server:
   port: ${SERVER_PORT:8082}
@@ -39,3 +39,4 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+

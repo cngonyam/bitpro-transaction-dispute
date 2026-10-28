@@ -1,4 +1,4 @@
-﻿@if (!isLoggedIn) {
+@if (!isLoggedIn) {
   <div class="app-shell login-screen">
     <div class="panel login-panel">
       <div class="brand-block login-brand">
@@ -31,7 +31,7 @@
 
         <div class="credential-hint">
           <span>Demo account</span>
-          <strong>dev-user / dev-pass123</strong>
+          <strong>customer-user / customer-pass123</strong>
         </div>
 
         <button type="submit" class="primary-button" [disabled]="isLoggingIn">
@@ -110,7 +110,7 @@
                   <tr>
                     <td>{{ transaction.transactionReference }}</td>
                     <td>{{ transaction.accountNumber }}</td>
-                    <td>{{ transaction.description || (transaction.status.toUpperCase() === 'PENDING' ? formatAmount(transaction.amount, transaction.type) : '—') }}</td>
+                    <td>{{ transaction.description || (transaction.status.toUpperCase() === 'PENDING' ? formatAmount(transaction.amount, transaction.type) : '�') }}</td>
                     <td>{{ transaction.merchantName }}</td>
                     <td>{{ formatAmount(transaction.amount, transaction.type) }}</td>
                     <td><span
@@ -315,21 +315,57 @@
                   </div>
 
                   <div class="reverse-action-box">
-                    <label>
-                      Reversal reason
-                      <select [(ngModel)]="reverseReason" name="reverseReason">
-                        <option value="">Select reason</option>
-                        <option value="MERCHANT_ERROR">Merchant error</option>
-                        <option value="UNAUTHORISED_DEBIT">Unauthorised debit</option>
-                        <option value="DUPLICATE_DEBIT">Duplicate debit</option>
-                        <option value="FRAUD">Fraud</option>
-                        <option value="CANCELLATION">Cancellation</option>
-                      </select>
-                    </label>
+                    @if (selectedDispute.status === 'OPEN' || selectedDispute.status === 'IN_REVIEW') {
+                      <div class="workflow-action-group">
+                        <label>
+                          Review decision
+                          <select [(ngModel)]="reviewDecision" name="reviewDecision">
+                            <option value="APPROVE">Approve</option>
+                            <option value="REJECT">Reject</option>
+                          </select>
+                        </label>
 
-                    <button type="button" class="primary-button" [disabled]="isReversingDispute || selectedDispute.status === 'RESOLVED'" (click)="reverseDispute()">
-                      {{ isReversingDispute ? 'Reversing...' : 'Reverse dispute' }}
-                    </button>
+                        <label>
+                          Review note
+                          <textarea [(ngModel)]="reviewNote" name="reviewNote" rows="3" placeholder="Add review note"></textarea>
+                        </label>
+
+                        <button type="button" class="primary-button" [disabled]="isReviewingDispute" (click)="reviewDisputeAction()">
+                          {{ isReviewingDispute ? 'Reviewing...' : 'Review dispute' }}
+                        </button>
+                      </div>
+                    }
+
+                    @if (selectedDispute.status === 'IN_REVIEW') {
+                      <div class="workflow-action-group">
+                        <label>
+                          Approval note
+                          <textarea [(ngModel)]="approvalNote" name="approvalNote" rows="3" placeholder="Add approval note"></textarea>
+                        </label>
+
+                        <button type="button" class="primary-button" [disabled]="isApprovingDispute" (click)="approveDisputeAction()">
+                          {{ isApprovingDispute ? 'Approving...' : 'Approve dispute' }}
+                        </button>
+                      </div>
+                    }
+
+                    @if (selectedDispute.status === 'PROVISIONAL_CREDIT_ISSUED') {
+                      <label>
+                        Reversal reason
+                        <select [(ngModel)]="reverseReason" name="reverseReason">
+                          <option value="">Select reason</option>
+                          <option value="MERCHANT_ERROR">Merchant error</option>
+                          <option value="UNAUTHORISED_DEBIT">Unauthorised debit</option>
+                          <option value="DUPLICATE_DEBIT">Duplicate debit</option>
+                          <option value="FRAUD">Fraud</option>
+                          <option value="CANCELLATION">Cancellation</option>
+                        </select>
+                      </label>
+
+                      <button type="button" class="primary-button" [disabled]="isReversingDispute" (click)="reverseDispute()">
+                        {{ isReversingDispute ? 'Reversing...' : 'Reverse dispute' }}
+                      </button>
+                    }
                   </div>
 
                   <div class="timeline">

@@ -12,9 +12,11 @@ import za.co.transactiondispute.controller.DisputeController;
 import za.co.transactiondispute.controller.TransactionController;
 import za.co.transactiondispute.controller.UserProfileController;
 import za.co.transactiondispute.dto.AccountDto;
+import za.co.transactiondispute.dto.ApproveDisputeRequest;
 import za.co.transactiondispute.dto.DisputeCreateRequest;
 import za.co.transactiondispute.dto.DisputeResponse;
 import za.co.transactiondispute.dto.ReverseDisputeRequest;
+import za.co.transactiondispute.dto.ReviewDisputeRequest;
 import za.co.transactiondispute.dto.TransactionDto;
 import za.co.transactiondispute.dto.UserProfileDto;
 import za.co.transactiondispute.entity.Account;
@@ -100,10 +102,10 @@ class ControllerFlowCoverageTest {
     @Test
     void shouldLoadAndUpdateUserProfileViaController() {
         UserProfileController userProfileController = new UserProfileController(userProfileService);
-        Principal principal = () -> "dev-user";
+        Principal principal = () -> "agent-user";
         UserProfile profile = UserProfile.builder()
                 .id(5L)
-                .username("dev-user")
+                .username("agent-user")
                 .fullName("Dev User")
                 .role("USER")
                 .email("dev@example.com")
@@ -112,8 +114,8 @@ class ControllerFlowCoverageTest {
                 .region("Johannesburg")
                 .build();
 
-        when(userProfileService.getProfile("dev-user")).thenReturn(profile);
-        when(userProfileService.saveProfile(eq("dev-user"), any(UserProfile.class))).thenAnswer(invocation -> {
+        when(userProfileService.getProfile("agent-user")).thenReturn(profile);
+        when(userProfileService.saveProfile(eq("agent-user"), any(UserProfile.class))).thenAnswer(invocation -> {
             UserProfile entity = invocation.getArgument(1);
             entity.setFullName("Updated User");
             entity.setRole("ADMIN");
@@ -155,8 +157,8 @@ class ControllerFlowCoverageTest {
 
         when(disputeService.getAllDisputes()).thenReturn(List.of(dispute));
         when(disputeService.getDisputeById(1L)).thenReturn(Optional.of(dispute));
-        when(disputeService.createDispute(any(DisputeCreateRequest.class))).thenReturn(dispute);
-        when(disputeService.reverseDispute(1L, "REASON")).thenReturn(dispute);
+        when(disputeService.createDispute(any(DisputeCreateRequest.class), anyString())).thenReturn(dispute);
+        when(disputeService.reverseDispute(eq(1L), eq("REASON"), anyString())).thenReturn(dispute);
 
         Page<DisputeResponse> disputes = disputeController.getDisputes(PageRequest.of(0, 10));
         assertEquals(1, disputes.getTotalElements());
@@ -181,6 +183,40 @@ class ControllerFlowCoverageTest {
 
         ResponseEntity<?> reversed = disputeController.reverseDispute(1L, reverseRequest);
         assertEquals(200, reversed.getStatusCodeValue());
+    }
+
+    @Test
+    void shouldReviewAndApproveDisputesViaController() {
+        DisputeController disputeController = new DisputeController(disputeService);
+        Dispute dispute = Dispute.builder()
+                .id(2L)
+                .disputeId("DSP-002")
+                .transactionReference("TX-200")
+                .accountNumber("ACC-1001")
+                .disputedAmount(new BigDecimal("35.00"))
+                .reasonCode("MERCHANT_ERROR")
+                .disputeType(DisputeType.CHARGEBACK)
+                .description("Issue")
+                .status(DisputeStatus.OPEN)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(disputeService.reviewDispute(2L, "APPROVE", "Needs verification")).thenReturn(dispute);
+        when(disputeService.approveDispute(2L, "Approved by team lead")).thenReturn(dispute);
+
+        ReviewDisputeRequest reviewRequest = new ReviewDisputeRequest();
+        reviewRequest.setDecision("APPROVE");
+        reviewRequest.setReviewNote("Needs verification");
+
+        ResponseEntity<?> reviewed = disputeController.reviewDispute(2L, reviewRequest);
+        assertEquals(200, reviewed.getStatusCodeValue());
+
+        ApproveDisputeRequest approveRequest = new ApproveDisputeRequest();
+        approveRequest.setApprovalNote("Approved by team lead");
+
+        ResponseEntity<?> approved = disputeController.approveDispute(2L, approveRequest);
+        assertEquals(200, approved.getStatusCodeValue());
     }
 
     @Test

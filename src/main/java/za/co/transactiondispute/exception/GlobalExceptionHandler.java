@@ -45,6 +45,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(DomainConflictException.class)
+    public ResponseEntity<ApiError> handleDomainConflict(DomainConflictException ex, HttpServletRequest request) {
+        log.warn("Domain conflict for {}: {}", request.getRequestURI(), ex.getMessage());
+        ApiError error = ApiError.builder()
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .status(HttpStatus.CONFLICT.value())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
         log.error("Data integrity violation for {}", request.getRequestURI(), ex);

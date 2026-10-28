@@ -24,6 +24,10 @@ public class DisputeResponse {
     private DisputeType disputeType;
     private String description;
     private String assignedToFullName;
+    private String reviewerUsername;
+    private String approvedByUsername;
+    private String reviewDecision;
+    private String approvalNote;
     private Boolean provisionalCreditIssued;
     private Boolean merchantEvidenceProvided;
     private String decisionOutcome;
