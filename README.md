@@ -1,16 +1,6 @@
 # Bitpro Transaction Dispute Portal
 
-Spring Boot 3 / Java 21 API and Angular frontend for transaction disputes: submit, review, approve, reverse.
-
-## Lifecycle
-
-```mermaid
-stateDiagram-v2
-    [*] --> OPEN: customer submits (debit only)
-    OPEN --> IN_REVIEW: review
-    IN_REVIEW --> PROVISIONAL_CREDIT_ISSUED: approve
-    PROVISIONAL_CREDIT_ISSUED --> RESOLVED: reverse (posts ledger credit)
-```
+Spring Boot 3 / Java 21 API and Angular frontend for dispute submission, review, approval and reversal.
 
 ## Roles
 
@@ -21,13 +11,13 @@ stateDiagram-v2
 | LEAD | yes | yes | yes | yes | - |
 | ADMIN | yes | yes | yes | yes | yes |
 
-The submitter of a dispute can never approve or reverse it. Roles cannot be changed through the profile API.
+The submitter of a dispute cannot approve or reverse it. Roles cannot be changed through the profile API.
 
-## Run locally
+## Local run
 
-Requires Java 21, Maven 3.9+, Node 22+.
+Requirements: Java 21, Maven 3.9+, Node 22+.
 
-Backend (SQLite, demo users enabled, throw-away secret):
+Backend (SQLite, demo users enabled):
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE = 'dev'
@@ -44,124 +34,76 @@ npm install
 npm start
 ```
 
-Backend: http://localhost:8082 (Swagger UI at `/swagger-ui.html`). Frontend: http://localhost:4200.
+- Backend: http://localhost:8082
+- Frontend: http://localhost:4200
+- Swagger UI: http://localhost:8082/swagger-ui.html
 
-Demo logins: `agent-user/agent-pass123`, `lead-user/lead-pass123`, `admin-user/admin-pass123`, `customer-user/customer-pass123`.
-
-## Start and debug the API
-
-### Start the API only
-
-Use the backend command above. Check it: http://localhost:8082/actuator/health should return `{"status":"UP"}`.
-
-Get a token and call the API:
-
-```powershell
-$login = Invoke-RestMethod -Method Post -Uri http://localhost:8082/api/v1/auth/login -ContentType 'application/json' -Body '{"username":"agent-user","password":"agent-pass123"}'
-Invoke-RestMethod -Uri http://localhost:8082/api/v1/disputes -Headers @{ Authorization = "Bearer $($login.token)" }
-```
-
-### Debug in VS Code
-
-Option A - run from the editor:
-
-1. Set the three environment variables above in a `.vscode/launch.json` entry, for example:
-   ```json
-   {
-     "type": "java",
-     "name": "Transaction Dispute API",
-     "request": "launch",
-     "mainClass": "za.co.transactiondispute.TransactionDisputeApplication",
-     "env": {
-       "SPRING_PROFILES_ACTIVE": "dev",
-       "JWT_SECRET": "local-dev-secret-at-least-32-characters-long",
-       "APP_SECURITY_DEMO_USERS_ENABLED": "true"
-     }
-   }
-   ```
-2. Set breakpoints (for example in `DisputeServiceImpl`) and press F5.
-
-Option B - attach to Maven:
-
-1. Start with the debug agent on port 5005:
-   ```powershell
-   mvn spring-boot:run "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
-   ```
-2. In VS Code add an attach configuration (`"type": "java"`, `"request": "attach"`, `"hostName": "localhost"`, `"port": 5005`) and start it.
-
-### Debug a single test
-
-Open a test class (for example `DisputeWorkflowApiTest`), then use "Debug Test" above the method. Tests use an in-memory database and set their own JWT secret, so no setup is needed.
-
-### Troubleshooting
-
-- `JWT_SECRET ... must be configured`: set `JWT_SECRET` (32+ characters).
-- Port 8082 busy: stop the other process or set `SERVER_PORT`.
-- Login returns 401 for `lead-user`, `admin-user` or `customer-user`: set `APP_SECURITY_DEMO_USERS_ENABLED=true`.
-- Stale local schema: delete `transaction-dispute.db` and restart.
-- Docker Compose fails with "port is already allocated": the local dev backend is still using 8082. Stop it before `docker compose up`.
+Demo logins:
+- `agent-user / agent-pass123`
+- `lead-user / lead-pass123`
+- `admin-user / admin-pass123`
+- `customer-user / customer-pass123`
 
 ## Docker
 
-The compose stack runs the API against PostgreSQL 16 (profile `postgres`) plus the frontend. It starts with demo defaults for the JWT secret and database password; override them for anything beyond local use.
-
 ```bash
 docker compose up --build -d
-# or with your own secrets:
-JWT_SECRET="$(openssl rand -hex 32)" POSTGRES_PASSWORD="$(openssl rand -hex 16)" docker compose up --build -d
-docker compose down -v   # stop and delete the database volume
 ```
 
-Backend: http://localhost:8082. Frontend: http://localhost:8080. The compose stack and a local `mvn spring-boot:run` both use port 8082, so run one at a time.
+- Backend: http://localhost:8082
+- Frontend: http://localhost:8080
+- Stop everything: `docker compose down -v`
 
-To run the API against your own PostgreSQL instead of SQLite, set `SPRING_PROFILES_ACTIVE=postgres` and `APP_DB_URL` / `APP_DB_USERNAME` / `APP_DB_PASSWORD`.
+To use a custom secret and database password:
 
-## Database migrations
+```bash
+JWT_SECRET="$(openssl rand -hex 32)" POSTGRES_PASSWORD="$(openssl rand -hex 16)" docker compose up --build -d
+```
 
-Liquibase runs on startup. `db/changelog/db.changelog-master.yaml` only lists includes; the changeSets live in numbered files under `db/changelog/changes/`. Each file sets `logicalFilePath: db/changelog/db.changelog-master.yaml` so changeSet identity matches databases created before the split. Do not remove that line or rename changeSet ids. Add new changeSets in a new numbered file and include it in the master.
-
-The append-only audit triggers are database specific: changeSet 018 is SQLite only and 019 is PostgreSQL only.
-
-SQLite stores timestamps as text (`yyyy-MM-dd HH:mm:ss`, set through the JDBC URL), so sub-second precision is lost there. PostgreSQL uses native `TIMESTAMP`.
-
-## Concurrency
-
-Reversal loads the dispute with `SELECT ... FOR UPDATE` (`DisputeRepository.findByIdForUpdate`), then re-checks status, idempotency key and ledger before posting the credit. Optimistic `@Version` columns and unique constraints are a second line of defence, and lock or version conflicts return 409. SQLite ignores `FOR UPDATE`, so the row-lock guarantee only holds on PostgreSQL; `ConcurrentReversalPostgresTest` exercises it there.
+The compose stack uses PostgreSQL 16. The local backend and compose backend both use port 8082, so run one at a time.
 
 ## Configuration
 
 | Variable | Purpose |
 |----------|---------|
-| `JWT_SECRET` | Required, at least 32 characters. The app will not start without it. |
-| `APP_SECURITY_DEMO_USERS_ENABLED` | `true` registers the admin, lead and customer demo users. Default `false`. |
-| `APP_SECURITY_USERNAME` / `APP_SECURITY_PASSWORD` | Built-in agent account. |
-| `APP_DB_PATH` | SQLite file location (default profile). |
-| `SPRING_PROFILES_ACTIVE=postgres` | Use PostgreSQL. |
-| `APP_DB_URL` / `APP_DB_USERNAME` / `APP_DB_PASSWORD` | PostgreSQL connection (postgres profile). |
-| `POSTGRES_PASSWORD` | Database password for the compose stack (demo default if unset). |
+| `JWT_SECRET` | Required; minimum 32 characters |
+| `APP_SECURITY_DEMO_USERS_ENABLED` | Enables demo users for local testing |
+| `APP_DB_PATH` | SQLite file location |
+| `SPRING_PROFILES_ACTIVE=postgres` | Use PostgreSQL |
+| `APP_DB_URL` / `APP_DB_USERNAME` / `APP_DB_PASSWORD` | PostgreSQL connection |
+| `POSTGRES_PASSWORD` | Compose database password |
 
 ## API
 
-Base path `/api/v1`. Log in with `POST /auth/login` and send `Authorization: Bearer <token>`.
+Base path: `/api/v1`
 
+- `POST /auth/login`
 - `GET /accounts`, `POST /accounts` (admin)
 - `GET /transactions`
 - `GET /disputes`, `GET /disputes/{id}`, `GET /disputes/{id}/history`
-- `POST /disputes` (needs `X-Idempotency-Key`)
+- `POST /disputes` (requires `X-Idempotency-Key`)
 - `POST /disputes/{id}/review`, `POST /disputes/{id}/approve`
-- `POST /disputes/{id}/reverse` (needs `X-Idempotency-Key`)
+- `POST /disputes/{id}/reverse` (requires `X-Idempotency-Key`)
 
-Replaying the same key and payload returns the original result. The same key with a different payload returns 400. Reversing an already-resolved dispute returns 409.
+The same idempotency key with the same payload returns the same result. The same key with a different payload returns 400. Reversing an already resolved dispute returns 409.
 
-## Test
+## Database and concurrency
+
+- Default profile uses SQLite.
+- PostgreSQL is supported via `SPRING_PROFILES_ACTIVE=postgres`.
+- Liquibase changeSets live in `src/main/resources/db/changelog/changes/` and the master file includes them.
+- The append-only audit tables are SQLite-only in one changeSet and PostgreSQL-only in another.
+- Reversal uses a row lock on PostgreSQL, with version checks and unique constraints as a second line of defence.
+
+## Tests
 
 ```bash
-mvn verify                                  # backend tests plus JaCoCo gate (80% line / 60% branch)
-cd frontend && npm test -- --no-watch       # frontend unit tests (Vitest)
+mvn verify                                  # backend tests and JaCoCo gate
+cd frontend && npm test -- --no-watch      # frontend unit tests
 ```
 
-`ConcurrentReversalPostgresTest` starts PostgreSQL through Testcontainers and is skipped automatically when Docker is not available. `src/test/resources/docker-java.properties` pins the Docker API version so Testcontainers works with current Docker Desktop.
+`ConcurrentReversalPostgresTest` runs on PostgreSQL through Testcontainers and is skipped automatically when Docker is unavailable.
 
-## Production notes
+## Notes
 
-The stack is runnable on PostgreSQL, but it is still a demo-grade setup. For production: replace the local users with an OIDC identity provider, move secrets to a secret manager, use database-level pagination, and add an outbox for notifications.
+This is still a demo-grade setup. For production, replace local users with an OIDC provider, move secrets to a secret manager, add database pagination, and add an outbox for notifications.
