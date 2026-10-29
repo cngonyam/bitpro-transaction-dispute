@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import za.co.transactiondispute.config.LocalDateTimeAttributeConverter;
 
 import java.time.LocalDateTime;
 
@@ -47,12 +46,8 @@ public class DisputeIdempotency {
 
     @Column
     private Long disputeId;
-
-    @Convert(converter = LocalDateTimeAttributeConverter.class)
     @Column(nullable = false, columnDefinition = "TEXT")
     private LocalDateTime createdAt;
-
-    @Convert(converter = LocalDateTimeAttributeConverter.class)
     @Column(nullable = false, columnDefinition = "TEXT")
     private LocalDateTime updatedAt;
 }

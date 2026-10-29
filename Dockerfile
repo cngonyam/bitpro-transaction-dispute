@@ -8,10 +8,14 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+RUN groupadd --system app && useradd --system --gid app --home-dir /app app \
+    && mkdir -p /data && chown app:app /data
+
 COPY --from=build /workspace/target/*.jar app.jar
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+USER app
 EXPOSE 8082
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

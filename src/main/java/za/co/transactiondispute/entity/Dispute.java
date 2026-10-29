@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import za.co.transactiondispute.config.LocalDateTimeAttributeConverter;
 import za.co.transactiondispute.enums.DisputeStatus;
 import za.co.transactiondispute.enums.DisputeType;
 
@@ -83,15 +82,14 @@ public class Dispute {
     @Column(length = 255)
     private String decisionOutcome;
 
+    @Column(length = 255)
+    private String reversalReason;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DisputeStatus status;
-
-    @Convert(converter = LocalDateTimeAttributeConverter.class)
     @Column(nullable = false, columnDefinition = "TEXT")
     private LocalDateTime createdAt;
-
-    @Convert(converter = LocalDateTimeAttributeConverter.class)
     @Column(nullable = false, columnDefinition = "TEXT")
     private LocalDateTime updatedAt;
 }

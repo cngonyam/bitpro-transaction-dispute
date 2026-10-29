@@ -100,7 +100,7 @@ class AuthSecurityTest {
 
     @Test
     void creatingAccountReturnsCreatedAndValidatesPayload() throws Exception {
-        String jwt = loginAndGetJwt();
+        String jwt = loginAndGetJwt("admin-user", "admin-pass123");
 
         mockMvc.perform(post("/api/v1/accounts")
                         .header("Authorization", "Bearer " + jwt)
@@ -118,10 +118,28 @@ class AuthSecurityTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void nonAdminUsersCannotCreateAccounts() throws Exception {
+        String body = "{\"accountNumber\":\"ACC-8888\",\"customerName\":\"X\",\"currency\":\"ZAR\",\"availableBalance\":1,\"balance\":1,\"status\":\"ACTIVE\"}";
+
+        for (String[] credentials : new String[][] {{"agent-user", "agent-pass123"}, {"customer-user", "customer-pass123"}}) {
+            String jwt = loginAndGetJwt(credentials[0], credentials[1]);
+            mockMvc.perform(post("/api/v1/accounts")
+                            .header("Authorization", "Bearer " + jwt)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
     private String loginAndGetJwt() throws Exception {
+        return loginAndGetJwt("agent-user", "agent-pass123");
+    }
+
+    private String loginAndGetJwt(String username, String password) throws Exception {
         String token = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"agent-user\",\"password\":\"agent-pass123\"}"))
+                        .content(objectMapper.writeValueAsString(Map.of("username", username, "password", password))))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

@@ -2,7 +2,6 @@ package za.co.transactiondispute.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +12,7 @@ import za.co.transactiondispute.entity.Transaction;
 import za.co.transactiondispute.mapper.TransactionMapper;
 import za.co.transactiondispute.service.AccountService;
 import za.co.transactiondispute.service.TransactionService;
+import za.co.transactiondispute.util.PageSupport;
 
 import java.net.URI;
 import java.util.List;
@@ -36,7 +36,7 @@ public class TransactionController {
         List<TransactionDto> transactions = transactionService.getAllTransactions().stream()
                 .map(this::toDtoWithAccountBalance)
                 .toList();
-        return pageFromList(transactions, pageable);
+        return PageSupport.fromList(transactions, pageable);
     }
 
     @GetMapping("/transactions/{reference}")
@@ -65,16 +65,5 @@ public class TransactionController {
         accountService.getAccountByNumber(transaction.getAccountNumber())
                 .ifPresent(account -> dto.setAccountBalance(account.getAvailableBalance() != null ? account.getAvailableBalance() : account.getBalance()));
         return dto;
-    }
-
-    private Page<TransactionDto> pageFromList(List<TransactionDto> content, Pageable pageable) {
-        if (pageable.isUnpaged()) {
-            return new PageImpl<>(content, Pageable.unpaged(), content.size());
-        }
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), content.size());
-        List<TransactionDto> pageContent = (start >= content.size()) ? List.of() : content.subList(start, end);
-        return new PageImpl<>(pageContent, pageable, content.size());
     }
 }

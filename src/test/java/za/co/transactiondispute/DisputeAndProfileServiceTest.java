@@ -54,7 +54,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ServiceCoverageTest {
+class DisputeAndProfileServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
@@ -193,9 +193,9 @@ class ServiceCoverageTest {
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, validator, emailClient, smsClient, context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, validator, emailClient, smsClient, context, accountRepository, userProfileService);
 
-        Dispute created = disputeService.createDispute(request);
+        Dispute created = disputeService.createDispute(request, java.util.UUID.randomUUID().toString());
 
         assertNotNull(created);
         assertEquals("ACC-1001", created.getAccountNumber());
@@ -238,7 +238,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         DisputeCreateRequest request = new DisputeCreateRequest();
         request.setTransactionReference("TX-21");
@@ -248,13 +248,13 @@ class ServiceCoverageTest {
         request.setDisputeType(DisputeType.CHARGEBACK);
         request.setDescription("Second dispute");
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request, java.util.UUID.randomUUID().toString()));
     }
 
     @Test
     void shouldRejectDisputeForOtherAccount() {
         DisputeValidator validator = new DisputeValidator();
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, validator, mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, validator, mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         DisputeCreateRequest request = new DisputeCreateRequest();
         request.setTransactionReference("TX-1");
@@ -263,12 +263,12 @@ class ServiceCoverageTest {
         request.setReasonCode("FRAUD");
         request.setDisputeType(DisputeType.CHARGEBACK);
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request, java.util.UUID.randomUUID().toString()));
     }
 
     @Test
     void shouldRejectDisputeWhenTransactionMissing() {
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         DisputeCreateRequest request = new DisputeCreateRequest();
         request.setTransactionReference("missing-tx");
@@ -279,12 +279,12 @@ class ServiceCoverageTest {
 
         when(transactionRepository.findByTransactionReference("missing-tx")).thenReturn(Optional.empty());
 
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.createDispute(request));
+        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.createDispute(request, java.util.UUID.randomUUID().toString()));
     }
 
     @Test
     void shouldRejectDisputeWhenAmountExceedsOriginal() {
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         DisputeCreateRequest request = new DisputeCreateRequest();
         request.setTransactionReference("TX-1");
@@ -305,7 +305,7 @@ class ServiceCoverageTest {
                 .description("test")
                 .build()));
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request, java.util.UUID.randomUUID().toString()));
     }
 
     @Test
@@ -320,7 +320,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("customer-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -354,7 +354,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(2L)
@@ -388,7 +388,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("lead-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(2L)
@@ -439,7 +439,7 @@ class ServiceCoverageTest {
                 .role("Dispute Operations Lead")
                 .email("ndumiso.ngonyama@bitpro.co.za")
                 .build());
-        assertEquals("AGENT", saved.getRole());
+        assertEquals("LEAD", saved.getRole());
 
         UserProfile admin = userProfileService.saveProfile("admin-user", UserProfile.builder()
                 .username("admin-user")
@@ -483,7 +483,7 @@ class ServiceCoverageTest {
         when(disputeStatusHistoryRepository.save(any(DisputeStatusHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -500,7 +500,7 @@ class ServiceCoverageTest {
 
         var captor = org.mockito.ArgumentCaptor.forClass(DisputeStatusHistory.class);
         verify(disputeStatusHistoryRepository).save(captor.capture());
-        assertEquals("AGENT", captor.getValue().getActorRole());
+        assertEquals("LEAD", captor.getValue().getActorRole());
         assertEquals("agent-user", captor.getValue().getActor());
     }
 
@@ -581,8 +581,8 @@ class ServiceCoverageTest {
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
-        Dispute created = disputeService.createDispute(request);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        Dispute created = disputeService.createDispute(request, java.util.UUID.randomUUID().toString());
 
         assertFalse(Boolean.TRUE.equals(created.getProvisionalCreditIssued()));
         assertNull(created.getDecisionOutcome());
@@ -600,7 +600,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -618,7 +618,7 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(Transaction.builder()
                 .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
@@ -687,8 +687,9 @@ class ServiceCoverageTest {
         when(transactionRepository.findByTransactionReference("TX-99")).thenReturn(Optional.of(originalTransaction));
         when(disputeRepository.findByTransactionReference("TX-99")).thenReturn(Optional.empty());
         when(disputeRepository.save(any(Dispute.class))).thenReturn(existing);
+        when(disputeRepository.findById(77L)).thenReturn(Optional.of(existing));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute first = disputeService.createDispute(request, "idempotent-key-99");
         Dispute second = disputeService.createDispute(request, "idempotent-key-99");
@@ -746,7 +747,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -786,17 +787,17 @@ class ServiceCoverageTest {
                 .status("ACTIVE")
                 .build();
 
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(original));
         when(accountRepository.findByAccountNumber("ACC-1001")).thenReturn(Optional.of(account));
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Dispute reversed = disputeService.reverseDispute(1L, "duplicate transaction");
+        Dispute reversed = disputeService.reverseDispute(1L, "duplicate transaction", java.util.UUID.randomUUID().toString());
 
         assertEquals(DisputeStatus.RESOLVED, reversed.getStatus());
         assertEquals("REVERSED", reversed.getDecisionOutcome());
-        assertTrue(reversed.getDescription().contains("duplicate transaction"));
+        assertTrue(reversed.getReversalReason().contains("duplicate transaction"));
         assertEquals("POSTED", original.getStatus());
         verify(transactionRepository).save(argThat(transaction ->
                 TransactionType.CREDIT.equals(transaction.getType())
@@ -819,7 +820,7 @@ class ServiceCoverageTest {
         DisputeLedgerEntryRepository ledgerEntryRepository = mock(DisputeLedgerEntryRepository.class);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -862,7 +863,7 @@ class ServiceCoverageTest {
                 .description("original")
                 .build();
 
-        when(disputeRepository.findById(12L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(12L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-12")).thenReturn(Optional.of(original));
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -889,7 +890,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(7L)
@@ -920,15 +921,15 @@ class ServiceCoverageTest {
                 .description("original")
                 .build();
 
-        when(disputeRepository.findById(7L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-7")).thenReturn(Optional.of(original));
         when(disputeRepository.save(any(Dispute.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Dispute reversed = disputeService.reverseDispute(7L, "duplicate transaction");
+        Dispute reversed = disputeService.reverseDispute(7L, "duplicate transaction", java.util.UUID.randomUUID().toString());
 
         assertEquals("agent-user", reversed.getReversedByUsername());
-        assertEquals("AGENT", reversed.getReversedByRole());
+        assertEquals("LEAD", reversed.getReversedByRole());
     }
 
     @Test
@@ -941,7 +942,7 @@ class ServiceCoverageTest {
                 .build());
 
         DisputeStatusHistoryRepository disputeStatusHistoryRepository = mock(DisputeStatusHistoryRepository.class);
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -988,7 +989,7 @@ class ServiceCoverageTest {
     @Test
     void shouldReturnDisputeHistoryWithCanonicalActorRole() {
         DisputeStatusHistoryRepository disputeStatusHistoryRepository = mock(DisputeStatusHistoryRepository.class);
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -1024,7 +1025,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldRejectReversalWithBlankReason() {
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -1040,7 +1041,7 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "   "));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "   ", java.util.UUID.randomUUID().toString()));
     }
 
     @Test
@@ -1055,7 +1056,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -1073,7 +1074,7 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(Transaction.builder()
                 .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
@@ -1086,7 +1087,7 @@ class ServiceCoverageTest {
                 .description("test")
                 .build()));
 
-        assertThrows(za.co.transactiondispute.exception.DomainConflictException.class, () -> disputeService.reverseDispute(1L, "repeat reversal"));
+        assertThrows(za.co.transactiondispute.exception.DomainConflictException.class, () -> disputeService.reverseDispute(1L, "repeat reversal", java.util.UUID.randomUUID().toString()));
         verify(transactionRepository, never()).save(any(Transaction.class));
     }
 
@@ -1103,7 +1104,7 @@ class ServiceCoverageTest {
         DisputeLedgerEntryRepository ledgerEntryRepository = mock(DisputeLedgerEntryRepository.class);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -1146,7 +1147,7 @@ class ServiceCoverageTest {
                 .description("original")
                 .build();
 
-        when(disputeRepository.findById(150L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(150L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-150")).thenReturn(Optional.of(original));
         when(ledgerEntryRepository.existsByDisputeIdAndAction(150L, "REVERSED")).thenReturn(true);
 
@@ -1157,7 +1158,7 @@ class ServiceCoverageTest {
 
     @Test
     void shouldRejectReversalForOtherAccount() {
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -1173,14 +1174,14 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(dispute));
 
-        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.reverseDispute(1L, "other account"));
+        assertThrows(za.co.transactiondispute.exception.ResourceNotFoundException.class, () -> disputeService.reverseDispute(1L, "other account", java.util.UUID.randomUUID().toString()));
     }
 
     @Test
     void shouldReturnOnlyCurrentCustomerDisputes() {
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), new CustomerAccountContext("ACC-1001"), accountRepository, mock(UserProfileService.class));
 
         Dispute current = Dispute.builder()
                 .id(1L)
@@ -1226,7 +1227,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -1257,7 +1258,7 @@ class ServiceCoverageTest {
                 .description("Salary")
                 .build()));
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.createDispute(request, java.util.UUID.randomUUID().toString()));
     }
 
     @Test
@@ -1267,7 +1268,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(
+        DisputeService disputeService = DisputeServiceFixtures.build(
                 disputeRepository,
                 transactionRepository,
                 new DisputeValidator(),
@@ -1294,9 +1295,9 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findById(101L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(dispute));
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(101L, "self reversal not allowed"));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(101L, "self reversal not allowed", java.util.UUID.randomUUID().toString()));
     }
 
     @Test
@@ -1311,7 +1312,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(200L)
@@ -1329,7 +1330,7 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findById(200L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-200")).thenReturn(Optional.of(Transaction.builder()
                 .transactionReference("TX-200")
                 .accountNumber("ACC-1001")
@@ -1342,7 +1343,7 @@ class ServiceCoverageTest {
                 .description("test")
                 .build()));
 
-        assertThrows(za.co.transactiondispute.exception.DomainConflictException.class, () -> disputeService.reverseDispute(200L, "repeated reversal"));
+        assertThrows(za.co.transactiondispute.exception.DomainConflictException.class, () -> disputeService.reverseDispute(200L, "repeated reversal", java.util.UUID.randomUUID().toString()));
     }
 
     @Test
@@ -1365,9 +1366,9 @@ class ServiceCoverageTest {
     @Test
     void shouldRecogniseLeadUsersAsAgentLevelOperators() {
         assertEquals(UserRoles.ADMIN, UserRoles.canonicalize("Dispute Admin", null));
-        assertEquals(UserRoles.AGENT, UserRoles.canonicalize("Dispute Operations Lead", null));
-        assertEquals(UserRoles.AGENT, UserRoles.defaultRoleForUsername("lead-user"));
-        assertEquals(UserRoles.AGENT, UserRoles.defaultRoleForUsername("operations-lead"));
+        assertEquals(UserRoles.LEAD, UserRoles.canonicalize("Dispute Operations Lead", null));
+        assertEquals(UserRoles.LEAD, UserRoles.defaultRoleForUsername("lead-user"));
+        assertEquals(UserRoles.LEAD, UserRoles.defaultRoleForUsername("operations-lead"));
         assertEquals(UserRoles.CUSTOMER, UserRoles.defaultRoleForUsername("customer-user"));
     }
 
@@ -1383,7 +1384,7 @@ class ServiceCoverageTest {
 
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("agent-user", "pw"));
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(1L)
@@ -1400,7 +1401,7 @@ class ServiceCoverageTest {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        when(disputeRepository.findById(1L)).thenReturn(Optional.of(dispute));
+        when(disputeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(dispute));
         when(transactionRepository.findByTransactionReference("TX-1")).thenReturn(Optional.of(Transaction.builder()
                 .transactionReference("TX-1")
                 .accountNumber("ACC-1001")
@@ -1413,7 +1414,7 @@ class ServiceCoverageTest {
                 .description("test")
                 .build()));
 
-        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "approved reversal"));
+        assertThrows(IllegalArgumentException.class, () -> disputeService.reverseDispute(1L, "approved reversal", java.util.UUID.randomUUID().toString()));
     }
 
     @Test
@@ -1431,7 +1432,7 @@ class ServiceCoverageTest {
                 .role("ADMIN")
                 .build());
 
-        DisputeService disputeService = new DisputeServiceImpl(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
+        DisputeService disputeService = DisputeServiceFixtures.build(disputeRepository, transactionRepository, new DisputeValidator(), mock(EmailClient.class), mock(SmsClient.class), context, accountRepository, userProfileService);
 
         Dispute dispute = Dispute.builder()
                 .id(99L)

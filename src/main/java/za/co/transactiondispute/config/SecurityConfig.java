@@ -40,6 +40,9 @@ public class SecurityConfig {
     @Value("${app.security.password}")
     private String devPassword;
 
+    @Value("${app.security.demo-users-enabled:false}")
+    private boolean demoUsersEnabled;
+
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
         if (devUsername == null || devUsername.isBlank()) {
@@ -54,6 +57,11 @@ public class SecurityConfig {
                 .roles("AGENT")
                 .build();
 
+        if (!demoUsersEnabled) {
+            return new InMemoryUserDetailsManager(agentUser);
+        }
+
+        // Demo-only accounts, enabled explicitly via app.security.demo-users-enabled. Never enable in production.
         UserDetails adminUser = User.withUsername("admin-user")
                 .password(passwordEncoder.encode("admin-pass123"))
                 .roles("ADMIN")
@@ -61,7 +69,7 @@ public class SecurityConfig {
 
         UserDetails leadUser = User.withUsername("lead-user")
                 .password(passwordEncoder.encode("lead-pass123"))
-                .roles("AGENT")
+                .roles("LEAD")
                 .build();
 
         UserDetails customerUser = User.withUsername("customer-user")
@@ -74,7 +82,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(4);
+        return new BCryptPasswordEncoder(10);
     }
 
     @Bean
@@ -97,14 +105,13 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/login", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**", "/actuator/health**")
+                        .requestMatchers("/api/v1/auth/login", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health**")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) ->
                         response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

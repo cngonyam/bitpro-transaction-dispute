@@ -6,6 +6,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -17,11 +18,20 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret:transaction-dispute-jwt-secret-change-me}")
+    private static final int MIN_SECRET_BYTES = 32;
+
+    @Value("${jwt.secret:}")
     private String secretKey;
 
     @Value("${jwt.expiration-ms:3600000}")
     private long jwtExpirationMs;
+
+    @PostConstruct
+    void validateSecret() {
+        if (secretKey == null || secretKey.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("jwt.secret (JWT_SECRET) must be configured with at least " + MIN_SECRET_BYTES + " characters.");
+        }
+    }
 
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()

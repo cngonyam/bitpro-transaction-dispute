@@ -1,0 +1,66 @@
+# Optimistic locking version columns (009-011)
+databaseChangeLog:
+  - logicalFilePath: db/changelog/db.changelog-master.yaml
+
+  - changeSet:
+      id: 009-add-version-columns
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: accounts
+            columns:
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - addColumn:
+            tableName: transactions
+            columns:
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 010-backfill-version-values
+      author: Ndumiso Ngonyama
+      changes:
+        - update:
+            tableName: accounts
+            columns:
+              - column:
+                  name: version
+                  valueNumeric: 0
+            where: version IS NULL
+        - update:
+            tableName: transactions
+            columns:
+              - column:
+                  name: version
+                  valueNumeric: 0
+            where: version IS NULL
+
+  - changeSet:
+      id: 011-add-dispute-version-column
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: disputes
+            columns:
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - update:
+            tableName: disputes
+            columns:
+              - column:
+                  name: version
+                  valueNumeric: 0
+            where: version IS NULL

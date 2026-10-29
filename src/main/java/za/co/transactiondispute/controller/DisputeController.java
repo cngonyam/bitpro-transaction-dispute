@@ -2,13 +2,11 @@ package za.co.transactiondispute.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -20,6 +18,7 @@ import za.co.transactiondispute.dto.ReviewDisputeRequest;
 import za.co.transactiondispute.entity.Dispute;
 import za.co.transactiondispute.entity.DisputeStatusHistory;
 import za.co.transactiondispute.service.DisputeService;
+import za.co.transactiondispute.util.PageSupport;
 
 import java.net.URI;
 import java.util.List;
@@ -34,32 +33,28 @@ public class DisputeController {
         this.disputeService = disputeService;
     }
 
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'LEAD', 'ADMIN')")
     @GetMapping("/disputes")
     public Page<DisputeResponse> getDisputes(@PageableDefault(size = 20, sort = "id") Pageable pageable) {
         List<DisputeResponse> disputes = disputeService.getAllDisputes().stream()
                 .map(this::toResponse)
                 .toList();
-        return pageFromList(disputes, pageable);
+        return PageSupport.fromList(disputes, pageable);
     }
 
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'LEAD', 'ADMIN')")
     @GetMapping("/disputes/{id}")
     public ResponseEntity<DisputeResponse> getDispute(@PathVariable Long id) {
         return ResponseEntity.ok(toResponse(disputeService.getDisputeById(id).orElseThrow()));
     }
 
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'LEAD', 'ADMIN')")
     @GetMapping("/disputes/{id}/history")
     public ResponseEntity<List<DisputeStatusHistory>> getDisputeHistory(@PathVariable Long id) {
         return ResponseEntity.ok(disputeService.getDisputeHistory(id));
     }
 
-    public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request) {
-        return createDispute(request, "legacy-create-" + java.util.UUID.randomUUID());
-    }
-
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'LEAD', 'ADMIN')")
     @PostMapping("/disputes")
     public ResponseEntity<DisputeResponse> createDispute(@Valid @RequestBody DisputeCreateRequest request,
                                                        @RequestHeader(value = "X-Idempotency-Key", required = false) String idempotencyKey) {
@@ -80,7 +75,7 @@ public class DisputeController {
         return ResponseEntity.created(location).body(response);
     }
 
-    @PreAuthorize("hasRole('AGENT') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('AGENT', 'LEAD', 'ADMIN')")
     @PostMapping("/disputes/{id}/review")
     public ResponseEntity<DisputeResponse> reviewDispute(@PathVariable Long id,
                                                        @RequestBody ReviewDisputeRequest request) {
@@ -90,7 +85,7 @@ public class DisputeController {
         return ResponseEntity.ok(toResponse(dispute));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('LEAD', 'ADMIN')")
     @PostMapping("/disputes/{id}/approve")
     public ResponseEntity<DisputeResponse> approveDispute(@PathVariable Long id,
                                                          @RequestBody ApproveDisputeRequest request) {
@@ -99,11 +94,7 @@ public class DisputeController {
         return ResponseEntity.ok(toResponse(dispute));
     }
 
-    public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id, @RequestBody ReverseDisputeRequest request) {
-        return reverseDispute(id, request, "legacy-reverse-" + java.util.UUID.randomUUID());
-    }
-
-    @PreAuthorize("hasRole('AGENT') or hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('AGENT', 'LEAD', 'ADMIN')")
     @PostMapping("/disputes/{id}/reverse")
     public ResponseEntity<DisputeResponse> reverseDispute(@PathVariable Long id,
                                                         @RequestBody ReverseDisputeRequest request,
@@ -122,11 +113,6 @@ public class DisputeController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, action + " requires the X-Idempotency-Key header.");
         }
         return key;
-    }
-
-    private String currentUserKey() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null && authentication.getName() != null ? authentication.getName() : "anonymous";
     }
 
     private DisputeResponse toResponse(Dispute dispute) {
@@ -149,20 +135,10 @@ public class DisputeController {
                 .provisionalCreditIssued(dispute.getProvisionalCreditIssued())
                 .merchantEvidenceProvided(dispute.getMerchantEvidenceProvided())
                 .decisionOutcome(dispute.getDecisionOutcome())
+                .reversalReason(dispute.getReversalReason())
                 .status(dispute.getStatus())
                 .createdAt(dispute.getCreatedAt())
                 .updatedAt(dispute.getUpdatedAt())
                 .build();
-    }
-
-    private Page<DisputeResponse> pageFromList(List<DisputeResponse> content, Pageable pageable) {
-        if (pageable.isUnpaged()) {
-            return new PageImpl<>(content, Pageable.unpaged(), content.size());
-        }
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), content.size());
-        List<DisputeResponse> pageContent = (start >= content.size()) ? List.of() : content.subList(start, end);
-        return new PageImpl<>(pageContent, pageable, content.size());
     }
 }

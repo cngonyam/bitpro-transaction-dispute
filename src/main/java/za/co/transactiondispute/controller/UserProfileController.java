@@ -21,14 +21,14 @@ public class UserProfileController {
         this.userProfileService = userProfileService;
     }
 
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'LEAD', 'ADMIN')")
     @GetMapping("/profile")
     public ResponseEntity<UserProfileDto> getProfile(Principal principal) {
         String username = resolveAuthenticatedUsername(principal);
         return ResponseEntity.ok(toDto(userProfileService.getProfile(username)));
     }
 
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'AGENT', 'LEAD', 'ADMIN')")
     @PutMapping("/profile")
     public ResponseEntity<UserProfileDto> updateProfile(@Valid @RequestBody UserProfileDto profile, Principal principal) {
         String username = resolveAuthenticatedUsername(principal);

@@ -23,7 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class TransactionServiceCoverageTest {
+class TransactionServiceTest {
 
     @Mock
     private TransactionRepository transactionRepository;

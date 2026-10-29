@@ -2,6 +2,6 @@
 set -eu
 
 mkdir -p /data
-rm -f /data/transaction-dispute.db
 
-exec java -jar /app/app.jar
+# shellcheck disable=SC2086
+exec java ${JAVA_OPTS:-} -jar /app/app.jar

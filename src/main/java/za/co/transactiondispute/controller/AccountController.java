@@ -2,15 +2,16 @@ package za.co.transactiondispute.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import za.co.transactiondispute.dto.AccountDto;
 import za.co.transactiondispute.entity.Account;
 import za.co.transactiondispute.service.AccountService;
+import za.co.transactiondispute.util.PageSupport;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -31,7 +32,7 @@ public class AccountController {
         List<AccountDto> accounts = accountService.getAllAccounts().stream()
                 .map(this::toDto)
                 .toList();
-        return pageFromList(accounts, pageable);
+        return PageSupport.fromList(accounts, pageable);
     }
 
     @GetMapping("/accounts/{id}")
@@ -39,6 +40,7 @@ public class AccountController {
         return ResponseEntity.ok(toDto(accountService.getAccountById(id).orElseThrow()));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/accounts")
     public ResponseEntity<AccountDto> createAccount(@Valid @RequestBody AccountDto accountDto) {
         BigDecimal availableBalance = accountDto.getAvailableBalance() == null ? BigDecimal.ZERO : accountDto.getAvailableBalance();
@@ -77,16 +79,5 @@ public class AccountController {
                 .balance(account.getBalance())
                 .status(account.getStatus())
                 .build();
-    }
-
-    private Page<AccountDto> pageFromList(List<AccountDto> content, Pageable pageable) {
-        if (pageable.isUnpaged()) {
-            return new PageImpl<>(content, Pageable.unpaged(), content.size());
-        }
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), content.size());
-        List<AccountDto> pageContent = (start >= content.size()) ? List.of() : content.subList(start, end);
-        return new PageImpl<>(pageContent, pageable, content.size());
     }
 }

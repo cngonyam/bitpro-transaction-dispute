@@ -1,16 +1,40 @@
 ﻿services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dispute-postgres
+    environment:
+      POSTGRES_DB: transaction_dispute
+      POSTGRES_USER: dispute
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dispute-demo-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispute -d transaction_dispute"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: dispute-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:sqlite:/data/transaction-dispute.db
+      SPRING_PROFILES_ACTIVE: postgres
+      APP_DB_URL: jdbc:postgresql://postgres:5432/transaction_dispute
+      APP_DB_USERNAME: dispute
+      APP_DB_PASSWORD: ${POSTGRES_PASSWORD:-dispute-demo-only}
       APP_SECURITY_USERNAME: agent-user
       APP_SECURITY_PASSWORD: agent-pass123
+      # Demo accounts (admin-user, lead-user, customer-user). Set to false outside demos.
+      APP_SECURITY_DEMO_USERS_ENABLED: "true"
       APP_ACCOUNT_MAPPINGS: admin-user=ACC-1001,agent-user=ACC-1001,lead-user=ACC-1001,customer-user=ACC-1001
-    volumes:
-      - sqlite-data:/data
+      # Override with a real secret (>= 32 chars): JWT_SECRET=... docker compose up
+      JWT_SECRET: ${JWT_SECRET:-compose-demo-only-jwt-secret-0123456789abcdef}
+      JAVA_OPTS: -XX:MaxRAMPercentage=75
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health >/dev/null || exit 1"]
       interval: 5s
@@ -32,5 +56,5 @@
       - "8080:80"
 
 volumes:
-  sqlite-data:
+  postgres-data:
 

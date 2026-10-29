@@ -6,6 +6,7 @@ public final class UserRoles {
 
     public static final String CUSTOMER = "CUSTOMER";
     public static final String AGENT = "AGENT";
+    public static final String LEAD = "LEAD";
     public static final String ADMIN = "ADMIN";
 
     private UserRoles() {
@@ -21,7 +22,10 @@ public final class UserRoles {
         if (normalized.contains("ADMIN")) {
             return ADMIN;
         }
-        if (normalized.contains("AGENT") || normalized.contains("LEAD") || normalized.contains("OPERATIONS")) {
+        if (normalized.contains("LEAD")) {
+            return LEAD;
+        }
+        if (normalized.contains("AGENT") || normalized.contains("OPERATIONS")) {
             return AGENT;
         }
         return CUSTOMER;
@@ -33,19 +37,22 @@ public final class UserRoles {
         if (normalized.contains("admin")) {
             return ADMIN;
         }
-        if (normalized.contains("agent") || normalized.contains("lead") || normalized.contains("operations") || normalized.contains("ops")) {
+        if (normalized.contains("lead")) {
+            return LEAD;
+        }
+        if (normalized.contains("agent") || normalized.contains("operations") || normalized.contains("ops")) {
             return AGENT;
         }
         return CUSTOMER;
     }
 
     public static boolean isAgentRole(String role) {
-        return AGENT.equals(canonicalize(role, null));
+        String canonical = canonicalize(role, null);
+        return AGENT.equals(canonical) || LEAD.equals(canonical);
     }
 
     public static boolean isLeadRole(String role) {
-        String normalized = role == null ? "" : role.trim().toUpperCase(Locale.ROOT);
-        return normalized.contains("LEAD") || normalized.contains("OPERATIONS");
+        return LEAD.equals(canonicalize(role, null));
     }
 
     public static boolean isAdminRole(String role) {

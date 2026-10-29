@@ -1,4 +1,4 @@
-﻿spring:
+spring:
   liquibase:
     drop-first: false
 

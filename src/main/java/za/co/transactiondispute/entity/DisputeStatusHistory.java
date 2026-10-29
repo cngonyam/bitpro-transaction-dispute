@@ -47,7 +47,6 @@ public class DisputeStatusHistory {
 
     @Column(length = 255)
     private String actorRole;
-
     @Column(nullable = false)
     private LocalDateTime changedAt;
 }

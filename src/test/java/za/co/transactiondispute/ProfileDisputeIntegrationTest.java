@@ -52,8 +52,9 @@ class ProfileDisputeIntegrationTest {
 
             userProfileService.saveProfile("agent-user", profile);
 
+            String reference = "TXN-PROFILE-" + java.util.UUID.randomUUID().toString().substring(0, 8);
             transactionRepository.save(Transaction.builder()
-                    .transactionReference("TXN-10001")
+                    .transactionReference(reference)
                     .accountNumber("ACC-1001")
                     .amount(new BigDecimal("99.00"))
                     .currency("ZAR")
@@ -65,14 +66,14 @@ class ProfileDisputeIntegrationTest {
                     .build());
 
             DisputeCreateRequest request = new DisputeCreateRequest();
-            request.setTransactionReference("TXN-10001");
+            request.setTransactionReference(reference);
             request.setAccountNumber("ACC-1001");
             request.setDisputedAmount(new BigDecimal("99.00"));
             request.setReasonCode("MERCHANT_ERROR");
             request.setDescription("Profile linked dispute");
             request.setDisputeType(null);
 
-            var dispute = disputeService.createDispute(request);
+            var dispute = disputeService.createDispute(request, java.util.UUID.randomUUID().toString());
 
             assertNotNull(dispute);
             assertEquals("Ndumiso Ngonyama", dispute.getAssignedToFullName());

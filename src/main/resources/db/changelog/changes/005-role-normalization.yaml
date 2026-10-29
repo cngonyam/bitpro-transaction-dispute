@@ -1,0 +1,50 @@
+# Canonicalize legacy roles (014)
+databaseChangeLog:
+  - logicalFilePath: db/changelog/db.changelog-master.yaml
+
+  - changeSet:
+      id: 014-canonicalize-legacy-user-roles
+      author: Ndumiso Ngonyama
+      changes:
+        - update:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: role
+                  value: AGENT
+            where: upper(role) LIKE '%AGENT%' OR upper(role) LIKE '%LEAD%' OR upper(role) LIKE '%OPERATIONS%'
+        - update:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: role
+                  value: ADMIN
+            where: upper(role) LIKE '%ADMIN%'
+        - update:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: role
+                  value: CUSTOMER
+            where: role IS NULL OR trim(role) = ''
+        - update:
+            tableName: dispute_status_history
+            columns:
+              - column:
+                  name: actor_role
+                  value: AGENT
+            where: actor IS NOT NULL AND (upper(actor) LIKE '%AGENT%' OR upper(actor) LIKE '%LEAD%' OR upper(actor) LIKE '%OPERATIONS%') AND actor_role IS NULL
+        - update:
+            tableName: dispute_status_history
+            columns:
+              - column:
+                  name: actor_role
+                  value: ADMIN
+            where: actor IS NOT NULL AND upper(actor) LIKE '%ADMIN%' AND actor_role IS NULL
+        - update:
+            tableName: dispute_status_history
+            columns:
+              - column:
+                  name: actor_role
+                  value: CUSTOMER
+            where: actor IS NOT NULL AND actor_role IS NULL

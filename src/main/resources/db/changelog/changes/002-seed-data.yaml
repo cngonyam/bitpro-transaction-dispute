@@ -1,0 +1,126 @@
+# Seed data: demo account and transactions (007-008)
+databaseChangeLog:
+  - logicalFilePath: db/changelog/db.changelog-master.yaml
+
+  - changeSet:
+      id: 007-insert-account-data
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: accounts
+            columns:
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: customer_name
+                  value: Jane Smith
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: available_balance
+                  valueNumeric: 0.0
+              - column:
+                  name: balance
+                  valueNumeric: 0.0
+              - column:
+                  name: status
+                  value: ACTIVE
+
+  - changeSet:
+      id: 008-insert-seed-transactions
+      author: Ndumiso Ngonyama
+      changes:
+        - insert:
+            tableName: transactions
+            columns:
+              - column:
+                  name: transaction_reference
+                  value: TX-20261001-EMPLOYER
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: amount
+                  valueNumeric: 12000.00
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: type
+                  value: CREDIT
+              - column:
+                  name: merchant_name
+                  value: Employer Payroll
+              - column:
+                  name: status
+                  value: SETTLED
+              - column:
+                  name: transaction_date
+                  value: 2026-10-01T00:00:00
+              - column:
+                  name: description
+                  value: Salary payment received
+
+        - insert:
+            tableName: transactions
+            columns:
+              - column:
+                  name: transaction_reference
+                  value: TX-20261002-CARDPAY
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: amount
+                  valueNumeric: -1300.00
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: type
+                  value: DEBIT
+              - column:
+                  name: merchant_name
+                  value: Card payment
+              - column:
+                  name: status
+                  value: DEBIT
+              - column:
+                  name: transaction_date
+                  value: 2026-10-02T00:00:00
+              - column:
+                  name: description
+                  value: Card payment
+
+        - insert:
+            tableName: transactions
+            columns:
+              - column:
+                  name: transaction_reference
+                  value: TX-20261003-DEBITORDER
+              - column:
+                  name: account_number
+                  value: ACC-1001
+              - column:
+                  name: amount
+                  valueNumeric: -1200.00
+              - column:
+                  name: currency
+                  value: ZAR
+              - column:
+                  name: type
+                  value: DEBIT
+              - column:
+                  name: merchant_name
+                  value: Debit Order
+              - column:
+                  name: status
+                  value: DEBIT
+              - column:
+                  name: transaction_date
+                  value: 2026-10-03T00:00:00
+              - column:
+                  name: description
+                  value: Debit order received
