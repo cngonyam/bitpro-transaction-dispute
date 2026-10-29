@@ -12,6 +12,12 @@ interface LoginForm {
   password: string;
 }
 
+interface DemoUserOption {
+  label: string;
+  username: string;
+  password: string;
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -42,17 +48,24 @@ export class App implements OnInit {
   errorMessage = '';
 
   profile: UserProfile = {
-    fullName: 'Ndumiso Ngonyama',
+    fullName: 'Dispute Operations Lead',
     role: 'AGENT',
-    email: 'ndumiso.ngonyama@bitpro.co.za',
+    email: 'lead-user@bitpro.co.za',
     phone: '+27 11 555 0123',
     department: 'Customer Operations',
     region: 'Johannesburg, South Africa',
   };
 
+  demoUsers: DemoUserOption[] = [
+    { label: 'Admin', username: 'admin-user', password: 'admin-pass123' },
+    { label: 'Agent', username: 'agent-user', password: 'agent-pass123' },
+    { label: 'Lead', username: 'lead-user', password: 'lead-pass123' },
+    { label: 'Customer', username: 'customer-user', password: 'customer-pass123' },
+  ];
+
   loginForm: LoginForm = {
-    username: 'agent-user',
-    password: 'agent-pass123',
+    username: 'lead-user',
+    password: 'lead-pass123',
   };
 
   form: DisputeCreateRequest = {
@@ -162,6 +175,15 @@ export class App implements OnInit {
     return fallback;
   }
 
+  selectDemoUser(option: DemoUserOption): void {
+    this.loginForm = {
+      username: option.username,
+      password: option.password,
+    };
+    this.errorMessage = '';
+    this.successMessage = `Demo user ready: ${option.label}.`;
+  }
+
   ngOnInit(): void {
     this.api.clearToken();
     this.isLoggedIn = false;
@@ -248,9 +270,9 @@ export class App implements OnInit {
       error: (error) => {
         this.errorMessage = this.resolveApiError(error, 'Unable to load the current profile.');
         this.profile = {
-          fullName: 'Ndumiso Ngonyama',
-          role: 'Dispute Operations Lead',
-          email: 'ndumiso.ngonyama@bitpro.co.za',
+          fullName: 'Dispute Operations Lead',
+          role: 'AGENT',
+          email: 'lead-user@bitpro.co.za',
           phone: '+27 11 555 0123',
           department: 'Customer Operations',
           region: 'Johannesburg, South Africa',

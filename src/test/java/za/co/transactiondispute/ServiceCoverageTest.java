@@ -41,7 +41,10 @@ import za.co.transactiondispute.util.BalanceCalculator;
 import za.co.transactiondispute.util.UserRoles;
 import za.co.transactiondispute.validation.DisputeValidator;
 
+import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -506,6 +509,14 @@ class ServiceCoverageTest {
         CustomerAccountContext context = new CustomerAccountContext("agent-user=ACC-1001,customer-user=ACC-1001");
 
         assertEquals("ACC-1001", context.getCurrentAccountNumber("admin-user"));
+    }
+
+    @Test
+    void shouldIncludeLeadUserAccountMappingInDevelopmentProfile() throws IOException {
+        String devProfile = Files.readString(Path.of("src/main/resources/application-dev.yml"));
+
+        assertTrue(devProfile.contains("admin-user=ACC-1001"));
+        assertTrue(devProfile.contains("lead-user=ACC-1001"));
     }
 
     @Test
