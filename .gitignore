@@ -4,3 +4,9 @@ frontend/dist/
 frontend/.angular/
 frontend-app.log
 transaction-dispute.db
+
+*.log
+*.err
+mvn-*.txt
+unused-imports.txt
+frontend/*.log

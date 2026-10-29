@@ -1,0 +1,86 @@
+# Dispute status history and reference uniqueness (012-013)
+databaseChangeLog:
+  - logicalFilePath: db/changelog/db.changelog-master.yaml
+
+  - changeSet:
+      id: 012-create-dispute-status-history-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: dispute_status_history
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dispute_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: from_status
+                  type: VARCHAR(255)
+              - column:
+                  name: to_status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: action
+                  type: VARCHAR(255)
+              - column:
+                  name: reason_code
+                  type: VARCHAR(255)
+              - column:
+                  name: actor
+                  type: VARCHAR(255)
+              - column:
+                  name: actor_role
+                  type: VARCHAR(255)
+              - column:
+                  name: changed_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: idx_dispute_status_history_dispute_id
+            tableName: dispute_status_history
+            columns:
+              - column:
+                  name: dispute_id
+        - createIndex:
+            indexName: idx_dispute_status_history_changed_at
+            tableName: dispute_status_history
+            columns:
+              - column:
+                  name: changed_at
+
+  - changeSet:
+      id: 013-ensure-transaction-and-dispute-reference-uniqueness
+      author: Ndumiso Ngonyama
+      validCheckSum: 9:24cda71a3cc59714d9183fb66c73bfc8
+      changes:
+        - createIndex:
+            indexName: idx_transactions_transaction_reference_unique
+            tableName: transactions
+            unique: true
+            columns:
+              - column:
+                  name: transaction_reference
+        - createIndex:
+            indexName: idx_disputes_transaction_reference_unique
+            tableName: disputes
+            unique: true
+            columns:
+              - column:
+                  name: transaction_reference

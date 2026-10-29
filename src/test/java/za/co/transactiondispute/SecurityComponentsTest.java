@@ -36,7 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class SecurityCoverageTest {
+class SecurityComponentsTest {
 
     @AfterEach
     void clearSecurityContext() {

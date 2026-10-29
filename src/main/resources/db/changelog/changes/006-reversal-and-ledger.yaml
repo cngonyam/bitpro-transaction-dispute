@@ -1,0 +1,131 @@
+# Reversal tracking and dispute ledger (015-017)
+databaseChangeLog:
+  - logicalFilePath: db/changelog/db.changelog-master.yaml
+
+  - changeSet:
+      id: 015-add-reversal-actor-columns
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: disputes
+            columns:
+              - column:
+                  name: reversed_by_username
+                  type: VARCHAR(255)
+              - column:
+                  name: reversed_by_role
+                  type: VARCHAR(255)
+
+  - changeSet:
+      id: 016-create-dispute-ledger-entries-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: dispute_ledger_entries
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dispute_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: transaction_reference
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: action
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: actor
+                  type: VARCHAR(255)
+              - column:
+                  name: actor_role
+                  type: VARCHAR(255)
+              - column:
+                  name: description
+                  type: VARCHAR(1000)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: idx_dispute_ledger_entries_dispute_id
+            tableName: dispute_ledger_entries
+            columns:
+              - column:
+                  name: dispute_id
+        - createIndex:
+            indexName: idx_dispute_ledger_entries_account_reference
+            tableName: dispute_ledger_entries
+            columns:
+              - column:
+                  name: account_number
+              - column:
+                  name: transaction_reference
+
+  - changeSet:
+      id: 017-preserve-reversal-reason-and-link-reversal-credit
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: disputes
+            columns:
+              - column:
+                  name: reversal_reason
+                  type: VARCHAR(255)
+        - addColumn:
+            tableName: transactions
+            columns:
+              - column:
+                  name: related_dispute_id
+                  type: BIGINT
+        - createIndex:
+            indexName: idx_transactions_related_dispute_id
+            tableName: transactions
+            columns:
+              - column:
+                  name: related_dispute_id
+        - update:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: role
+                  value: LEAD
+            where: lower(username) LIKE '%lead%'

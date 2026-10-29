@@ -1,7 +1,6 @@
-import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
-import { App } from './app';
 import { TransactionDisputeService } from './transaction-dispute.service';
 
 describe('TransactionDisputeService', () => {
@@ -9,106 +8,77 @@ describe('TransactionDisputeService', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule],
-      providers: [TransactionDisputeService],
-    });
-
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     service = TestBed.inject(TransactionDisputeService);
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => {
-    httpMock.verify();
-  });
+  afterEach(() => httpMock.verify());
 
-  it('extracts the content array from paginated backend responses', () => {
+  it('extracts the content array from paginated responses and sends the bearer token', () => {
     service.setToken('abc');
-
-    let transactions: any[] | undefined;
-    service.getTransactions().subscribe((result) => {
-      transactions = result;
-    });
+    let result: unknown;
+    service.getTransactions().subscribe((value) => (result = value));
 
     const request = httpMock.expectOne('/api/v1/transactions');
     expect(request.request.headers.get('Authorization')).toBe('Bearer abc');
+    request.flush({ content: [{ id: 1 }], totalElements: 1 });
 
-    request.flush({
-      content: [
-        { id: 1, transactionReference: 'TX-1', accountNumber: 'ACC-1001', amount: -50, currency: 'ZAR', type: 'DEBIT', merchantName: 'Acme', status: 'SETTLED', transactionDate: '2026-10-01T00:00:00' },
-      ],
-      totalElements: 1,
-    });
-
-    expect(transactions).toEqual([
-      { id: 1, transactionReference: 'TX-1', accountNumber: 'ACC-1001', amount: -50, currency: 'ZAR', type: 'DEBIT', merchantName: 'Acme', status: 'SETTLED', transactionDate: '2026-10-01T00:00:00' },
-    ]);
+    expect(result).toEqual([{ id: 1 }]);
   });
 
-  it('adds an idempotency key to dispute creation requests', () => {
+  it('sends no Authorization header after the token is cleared', () => {
     service.setToken('abc');
+    service.clearToken();
+    service.getDisputes().subscribe();
 
+    const request = httpMock.expectOne('/api/v1/disputes');
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush({ content: [] });
+  });
+
+  it('adds a deterministic idempotency key to dispute creation', () => {
     const payload = {
       transactionReference: 'TX-1',
       accountNumber: 'ACC-1001',
       disputedAmount: 100,
       reasonCode: 'MERCHANT_ERROR',
-      disputeType: 'CHARGEBACK',
+      disputeType: 'CHARGEBACK' as const,
       description: 'Issue',
     };
 
-    service.createDispute(payload as any).subscribe((result) => {
-      expect(result).toEqual({
-        id: 7,
-        disputeId: 'DSP-1',
-        transactionReference: 'TX-1',
-        accountNumber: 'ACC-1001',
-        disputedAmount: 100,
-        reasonCode: 'MERCHANT_ERROR',
-        status: 'OPEN',
-      });
-    });
+    service.createDispute(payload).subscribe();
+    service.createDispute(payload).subscribe();
 
-    const request = httpMock.expectOne('/api/v1/disputes');
-    expect(request.request.headers.get('Authorization')).toBe('Bearer abc');
-    expect(request.request.headers.get('X-Idempotency-Key')).toBeTruthy();
-
-    request.flush({
-      id: 7,
-      disputeId: 'DSP-1',
-      transactionReference: 'TX-1',
-      accountNumber: 'ACC-1001',
-      disputedAmount: 100,
-      reasonCode: 'MERCHANT_ERROR',
-      status: 'OPEN',
-    });
+    const [first, second] = httpMock.match('/api/v1/disputes');
+    const key = first.request.headers.get('X-Idempotency-Key');
+    expect(key).toMatch(/^create-dispute-[0-9a-f]{8}$/);
+    expect(second.request.headers.get('X-Idempotency-Key')).toBe(key);
+    first.flush({});
+    second.flush({});
   });
 
-  it('assigns the agent role immediately after an agent login so reversal is allowed', () => {
-    const api = {
-      clearToken: jasmine.createSpy('clearToken'),
-      setToken: jasmine.createSpy('setToken'),
-      login: jasmine.createSpy('login').and.returnValue(of({ token: 'abc', username: 'agent-user' })),
-      getProfile: jasmine.createSpy('getProfile').and.returnValue(of({
-        fullName: 'Agent User',
-        role: 'AGENT',
-        email: 'agent-user@bitpro.co.za',
-        phone: '+27 11 111 1111',
-        department: 'Customer Operations',
-        region: 'Johannesburg, South Africa',
-      })),
-      getTransactions: jasmine.createSpy('getTransactions').and.returnValue(of([])),
-      getDisputes: jasmine.createSpy('getDisputes').and.returnValue(of([])),
-      getAccounts: jasmine.createSpy('getAccounts').and.returnValue(of([])),
-      reverseDispute: jasmine.createSpy('reverseDispute'),
-    } as any;
+  it('keys reversals by dispute and reason', () => {
+    service.reverseDispute(7, 'FRAUD').subscribe();
+    service.reverseDispute(7, 'DUPLICATE_DEBIT').subscribe();
 
-    const app = new App(api, { detectChanges: jasmine.createSpy('detectChanges') } as any);
-    app.loginForm = { username: 'agent-user', password: 'agent-pass123' };
+    const [fraud, duplicate] = httpMock.match('/api/v1/disputes/7/reverse');
+    expect(fraud.request.body).toEqual({ reasonCode: 'FRAUD' });
+    expect(fraud.request.headers.get('X-Idempotency-Key')).not.toBe(duplicate.request.headers.get('X-Idempotency-Key'));
+    fraud.flush({});
+    duplicate.flush({});
+  });
 
-    app.login();
+  it('retries a failed read once before surfacing the error', () => {
+    vi.useFakeTimers();
+    let failed = false;
+    service.getProfile().subscribe({ error: () => (failed = true) });
 
-    expect(app.profile.role).toBe('AGENT');
-    expect(app.isLoggedIn).toBeTrue();
+    httpMock.expectOne('/api/v1/profile').flush('boom', { status: 500, statusText: 'Server Error' });
+    vi.advanceTimersByTime(250);
+    httpMock.expectOne('/api/v1/profile').flush('boom', { status: 500, statusText: 'Server Error' });
+
+    expect(failed).toBe(true);
+    vi.useRealTimers();
   });
 });

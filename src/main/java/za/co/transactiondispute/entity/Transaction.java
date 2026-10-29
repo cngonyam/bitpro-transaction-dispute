@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import za.co.transactiondispute.config.LocalDateTimeAttributeConverter;
 import za.co.transactiondispute.enums.TransactionType;
 
 import java.math.BigDecimal;
@@ -48,11 +47,12 @@ public class Transaction {
 
     @Column(nullable = false)
     private String status;
-
-    @Convert(converter = LocalDateTimeAttributeConverter.class)
     @Column(nullable = false, columnDefinition = "TEXT")
     private LocalDateTime transactionDate;
 
     @Column(length = 500)
     private String description;
+
+    @Column
+    private Long relatedDisputeId;
 }

@@ -45,19 +45,8 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional(readOnly = true)
     public Optional<Transaction> getTransactionByReference(String reference) {
-        List<Transaction> matches = transactionRepository.findAllByTransactionReference(reference);
-        if (matches.isEmpty()) {
-            Optional<Transaction> legacyMatch = transactionRepository.findByTransactionReference(reference);
-            if (legacyMatch.isEmpty()) {
-                throw new ResourceNotFoundException("Transaction not found with reference: " + reference);
-            }
-            matches = List.of(legacyMatch.get());
-        }
-        if (matches.size() > 1) {
-            throw new IllegalStateException("Duplicate transaction references detected for: " + reference);
-        }
-
-        Transaction transaction = matches.getFirst();
+        Transaction transaction = transactionRepository.findByTransactionReference(reference)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found with reference: " + reference));
         if (!transaction.getAccountNumber().equalsIgnoreCase(customerAccountContext.getCurrentAccountNumber())) {
             throw new ResourceNotFoundException("Transaction not found with reference: " + reference);
         }

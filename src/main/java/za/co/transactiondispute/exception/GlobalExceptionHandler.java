@@ -3,6 +3,7 @@ package za.co.transactiondispute.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiError> handleResponseStatus(org.springframework.web.server.ResponseStatusException ex, HttpServletRequest request) {
+        ApiError error = ApiError.builder()
+                .message(ex.getReason() != null ? ex.getReason() : ex.getStatusCode().toString())
+                .path(request.getRequestURI())
+                .status(ex.getStatusCode().value())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(ex.getStatusCode()).body(error);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiError> handleBadRequest(IllegalArgumentException ex, HttpServletRequest request) {
         log.error("Bad request for {}: {}", request.getRequestURI(), ex.getMessage(), ex);
@@ -57,11 +69,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(ConcurrencyFailureException.class)
+    public ResponseEntity<ApiError> handleConcurrencyFailure(ConcurrencyFailureException ex, HttpServletRequest request) {
+        log.warn("Concurrent modification for {}: {}", request.getRequestURI(), ex.getMessage());
+        ApiError error = ApiError.builder()
+                .message("The resource was modified by another request. Please retry.")
+                .path(request.getRequestURI())
+                .status(HttpStatus.CONFLICT.value())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
         log.error("Data integrity violation for {}", request.getRequestURI(), ex);
         ApiError error = ApiError.builder()
-                .message(ex.getMostSpecificCause() != null ? ex.getMostSpecificCause().getMessage() : "Duplicate record or invalid data")
+                .message("The request conflicts with existing data")
                 .path(request.getRequestURI())
                 .status(HttpStatus.CONFLICT.value())
                 .timestamp(LocalDateTime.now())

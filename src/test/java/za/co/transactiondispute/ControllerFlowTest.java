@@ -43,7 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class ControllerFlowCoverageTest {
+class ControllerFlowTest {
 
     @Mock
     private AccountService accountService;
@@ -175,13 +175,13 @@ class ControllerFlowCoverageTest {
         createRequest.setDisputeType(DisputeType.CHARGEBACK);
         createRequest.setDescription("Issue");
 
-        ResponseEntity<?> createdDispute = disputeController.createDispute(createRequest);
+        ResponseEntity<?> createdDispute = disputeController.createDispute(createRequest, "create-key-1");
         assertEquals(201, createdDispute.getStatusCodeValue());
 
         ReverseDisputeRequest reverseRequest = new ReverseDisputeRequest();
         reverseRequest.setReasonCode("REASON");
 
-        ResponseEntity<?> reversed = disputeController.reverseDispute(1L, reverseRequest);
+        ResponseEntity<?> reversed = disputeController.reverseDispute(1L, reverseRequest, "reverse-key-1");
         assertEquals(200, reversed.getStatusCodeValue());
     }
 

@@ -36,11 +36,8 @@ public class UserProfileServiceImpl implements UserProfileService {
 
         existing.setFullName(profile.getFullName() == null || profile.getFullName().isBlank() ? existing.getFullName() : profile.getFullName());
 
-        String canonicalRole = UserRoles.canonicalize(
-                profile.getRole() != null ? profile.getRole() : existing.getRole(),
-                username
-        );
-        existing.setRole(canonicalRole);
+        // The role is authoritative server-side state and is never taken from the request payload.
+        existing.setRole(UserRoles.canonicalize(existing.getRole(), username));
 
         existing.setEmail(profile.getEmail() == null || profile.getEmail().isBlank() ? existing.getEmail() : profile.getEmail());
         existing.setPhone(profile.getPhone() == null || profile.getPhone().isBlank() ? existing.getPhone() : profile.getPhone());

@@ -1,0 +1,316 @@
+# Core tables: accounts, transactions, disputes, user profiles, idempotency (001-006)
+databaseChangeLog:
+  - logicalFilePath: db/changelog/db.changelog-master.yaml
+
+  - changeSet:
+      id: 001-create-accounts-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: accounts
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: customer_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: available_balance
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: balance
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 002-create-transactions-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: transactions
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: transaction_reference
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: amount
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: merchant_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: transaction_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+
+  - changeSet:
+      id: 003-create-disputes-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: disputes
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: dispute_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: transaction_reference
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: account_number
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: disputed_amount
+                  type: DECIMAL(38,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reason_code
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: dispute_type
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: TEXT
+              - column:
+                  name: assigned_to_full_name
+                  type: VARCHAR(255)
+              - column:
+                  name: provisional_credit_issued
+                  type: BOOLEAN
+              - column:
+                  name: merchant_evidence_provided
+                  type: BOOLEAN
+              - column:
+                  name: decision_outcome
+                  type: VARCHAR(255)
+              - column:
+                  name: reviewer_username
+                  type: VARCHAR(255)
+              - column:
+                  name: approved_by_username
+                  type: VARCHAR(255)
+              - column:
+                  name: review_decision
+                  type: VARCHAR(255)
+              - column:
+                  name: approval_note
+                  type: VARCHAR(255)
+              - column:
+                  name: status
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: 004-create-user-profiles-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: user_profiles
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: username
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: full_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: VARCHAR(255)
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+              - column:
+                  name: phone
+                  type: VARCHAR(255)
+              - column:
+                  name: department
+                  type: VARCHAR(255)
+              - column:
+                  name: region
+                  type: VARCHAR(255)
+
+  - changeSet:
+      id: 005-create-dispute-idempotency-table
+      author: Ndumiso Ngonyama
+      changes:
+        - createTable:
+            tableName: dispute_idempotency
+            columns:
+              - column:
+                  name: id
+                  type: INTEGER
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    defaultValueNumeric: 0
+              - column:
+                  name: username
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: operation
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: idempotency_key
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: request_hash
+                  type: VARCHAR(1024)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: response_hash
+                  type: VARCHAR(1024)
+              - column:
+                  name: dispute_id
+                  type: BIGINT
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - createIndex:
+            indexName: uk_dispute_idempotency_user_operation_key
+            tableName: dispute_idempotency
+            unique: true
+            columns:
+              - column:
+                  name: username
+              - column:
+                  name: operation
+              - column:
+                  name: idempotency_key
+
+  - changeSet:
+      id: 006-add-submitted-by-username-to-disputes
+      author: Ndumiso Ngonyama
+      changes:
+        - addColumn:
+            tableName: disputes
+            columns:
+              - column:
+                  name: submitted_by_username
+                  type: VARCHAR(255)

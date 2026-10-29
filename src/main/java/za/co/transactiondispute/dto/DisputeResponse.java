@@ -33,6 +33,7 @@ public class DisputeResponse {
     private Boolean provisionalCreditIssued;
     private Boolean merchantEvidenceProvided;
     private String decisionOutcome;
+    private String reversalReason;
     private DisputeStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

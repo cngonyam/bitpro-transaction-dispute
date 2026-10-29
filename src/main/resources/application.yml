@@ -1,8 +1,8 @@
-﻿spring:
+spring:
   application:
     name: transaction-dispute-api
   datasource:
-    url: jdbc:sqlite:${APP_DB_PATH:transaction-dispute.db}
+    url: jdbc:sqlite:${APP_DB_PATH:transaction-dispute.db}?date_class=TEXT&date_string_format=yyyy-MM-dd HH:mm:ss
     username: ${APP_DB_USERNAME:}
     password: ${APP_DB_PASSWORD:}
     driver-class-name: org.sqlite.JDBC

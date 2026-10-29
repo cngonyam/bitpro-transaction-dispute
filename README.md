@@ -1,260 +1,167 @@
 # Bitpro Transaction Dispute Portal
 
-A full-stack dispute management portal for Bitpro, built with a Spring Boot API and Angular frontend. The application models a realistic banking dispute workflow with review, approval, ledger updates, and reversal safeguards rather than a static status mock.
+Spring Boot 3 / Java 21 API and Angular frontend for transaction disputes: submit, review, approve, reverse.
 
-## Overview
+## Lifecycle
 
-The portal supports:
-
-- customer account and transaction review
-- dispute submission for eligible debit transactions
-- dispute review progression from Open to In Review
-- approval by authorised lead/admin users to issue provisional credit
-- reversal processing with idempotency protection
-- ledger-aware balance recalculation after critical financial actions
-- durable status history and audit-friendly actor metadata
-
-## Business rules
-
-This project is deliberately closer to a production banking workflow than a toy demo:
-
-- disputes are created only for valid customer-owned transactions
-- review and approval are enforced by role and workflow state
-- only approved disputes can be reversed
-- duplicate reversal attempts are blocked
-- account balances are recalculated from the transaction ledger after reversal
-- review and approval history is recorded to support auditability
-
-## Tech stack
-
-### Backend
-- Java 21
-- Spring Boot 3.3.x
-- Spring Web / MVC
-- Spring Data JPA
-- Spring Security + JWT
-- SQLite with Liquibase migrations
-- Spring Boot Actuator
-- OpenAPI / Swagger UI
-
-### Frontend
-- Angular 22
-- TypeScript
-- Standalone components
-
-## Project structure
-
-```text
-bitpro-transaction-dispute/
-├─ src/
-│  ├─ main/
-│  │  ├─ java/
-│  │  └─ resources/
-│  └─ test/
-├─ frontend/
-│  ├─ src/
-│  ├─ angular.json
-│  ├─ package.json
-│  └─ tsconfig.json
-├─ pom.xml
-├─ Dockerfile
-├─ docker-compose.yml
-├─ README.md
-├─ transaction-dispute.db
-├─ target/
-└─ frontend/Dockerfile
+```mermaid
+stateDiagram-v2
+    [*] --> OPEN: customer submits (debit only)
+    OPEN --> IN_REVIEW: review
+    IN_REVIEW --> PROVISIONAL_CREDIT_ISSUED: approve
+    PROVISIONAL_CREDIT_ISSUED --> RESOLVED: reverse (posts ledger credit)
 ```
 
-## Prerequisites
+## Roles
 
-- Java 21
-- Maven 3.9+
-- Node.js 22+
-- npm
+| Role | Submit | Review | Approve | Reverse | Create accounts |
+|------|:------:|:------:|:-------:|:-------:|:---------------:|
+| CUSTOMER | yes | - | - | - | - |
+| AGENT | yes | yes | - | yes | - |
+| LEAD | yes | yes | yes | yes | - |
+| ADMIN | yes | yes | yes | yes | yes |
 
-## Local startup
+The submitter of a dispute can never approve or reverse it. Roles cannot be changed through the profile API.
 
-### 1. Start the backend from the project root
+## Run locally
 
-For the verified local run in this workspace, use the dev profile and port 8083:
+Requires Java 21, Maven 3.9+, Node 22+.
 
-#### PowerShell
+Backend (SQLite, demo users enabled, throw-away secret):
 
 ```powershell
-Set-Location 'C:\Projects\bitpro\bitpro-transaction-dispute'
-Remove-Item -Path '.\transaction-dispute.db' -Force -ErrorAction SilentlyContinue
-$env:SPRING_PROFILES_ACTIVE='dev'
-$env:APP_SECURITY_USERNAME='agent-user'
-$env:APP_SECURITY_PASSWORD='agent-pass123'
-$env:SERVER_PORT='8083'
+$env:SPRING_PROFILES_ACTIVE = 'dev'
+$env:JWT_SECRET = 'local-dev-secret-at-least-32-characters-long'
+$env:APP_SECURITY_DEMO_USERS_ENABLED = 'true'
 mvn spring-boot:run
 ```
 
-#### Bash
+Frontend (second terminal):
 
-```bash
-cd /c/Projects/bitpro/bitpro-transaction-dispute
-rm -f transaction-dispute.db
-SPRING_PROFILES_ACTIVE=dev APP_SECURITY_USERNAME=agent-user APP_SECURITY_PASSWORD=agent-pass123 SERVER_PORT=8083 mvn spring-boot:run
-```
-
-The backend is exposed at:
-
-- API: http://localhost:8083
-- Health check: http://localhost:8083/actuator/health
-- Swagger UI: http://localhost:8083/swagger-ui.html
-
-If you are running a fresh local DB, deleting the SQLite file before startup ensures the schema and seed data are rebuilt cleanly.
-
-### 2. Start the frontend
-
-From the frontend folder:
-
-```bash
+```powershell
 cd frontend
 npm install
-npm start -- --host 0.0.0.0 --port 4200
+npm start
 ```
 
-Open the app here:
+Backend: http://localhost:8082 (Swagger UI at `/swagger-ui.html`). Frontend: http://localhost:4200.
 
-```text
-http://localhost:4200
+Demo logins: `agent-user/agent-pass123`, `lead-user/lead-pass123`, `admin-user/admin-pass123`, `customer-user/customer-pass123`.
+
+## Start and debug the API
+
+### Start the API only
+
+Use the backend command above. Check it: http://localhost:8082/actuator/health should return `{"status":"UP"}`.
+
+Get a token and call the API:
+
+```powershell
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:8082/api/v1/auth/login -ContentType 'application/json' -Body '{"username":"agent-user","password":"agent-pass123"}'
+Invoke-RestMethod -Uri http://localhost:8082/api/v1/disputes -Headers @{ Authorization = "Bearer $($login.token)" }
 ```
 
-### 3. Production-style build check
+### Debug in VS Code
 
-```bash
-cd frontend
-npm run build
-```
+Option A - run from the editor:
+
+1. Set the three environment variables above in a `.vscode/launch.json` entry, for example:
+   ```json
+   {
+     "type": "java",
+     "name": "Transaction Dispute API",
+     "request": "launch",
+     "mainClass": "za.co.transactiondispute.TransactionDisputeApplication",
+     "env": {
+       "SPRING_PROFILES_ACTIVE": "dev",
+       "JWT_SECRET": "local-dev-secret-at-least-32-characters-long",
+       "APP_SECURITY_DEMO_USERS_ENABLED": "true"
+     }
+   }
+   ```
+2. Set breakpoints (for example in `DisputeServiceImpl`) and press F5.
+
+Option B - attach to Maven:
+
+1. Start with the debug agent on port 5005:
+   ```powershell
+   mvn spring-boot:run "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+   ```
+2. In VS Code add an attach configuration (`"type": "java"`, `"request": "attach"`, `"hostName": "localhost"`, `"port": 5005`) and start it.
+
+### Debug a single test
+
+Open a test class (for example `DisputeWorkflowApiTest`), then use "Debug Test" above the method. Tests use an in-memory database and set their own JWT secret, so no setup is needed.
+
+### Troubleshooting
+
+- `JWT_SECRET ... must be configured`: set `JWT_SECRET` (32+ characters).
+- Port 8082 busy: stop the other process or set `SERVER_PORT`.
+- Login returns 401 for `lead-user`, `admin-user` or `customer-user`: set `APP_SECURITY_DEMO_USERS_ENABLED=true`.
+- Stale local schema: delete `transaction-dispute.db` and restart.
+- Docker Compose fails with "port is already allocated": the local dev backend is still using 8082. Stop it before `docker compose up`.
 
 ## Docker
 
-This project also supports a containerized stack.
-
-### Build and run
+The compose stack runs the API against PostgreSQL 16 (profile `postgres`) plus the frontend. It starts with demo defaults for the JWT secret and database password; override them for anything beyond local use.
 
 ```bash
 docker compose up --build -d
+# or with your own secrets:
+JWT_SECRET="$(openssl rand -hex 32)" POSTGRES_PASSWORD="$(openssl rand -hex 16)" docker compose up --build -d
+docker compose down -v   # stop and delete the database volume
 ```
 
-Typical endpoints:
+Backend: http://localhost:8082. Frontend: http://localhost:8080. The compose stack and a local `mvn spring-boot:run` both use port 8082, so run one at a time.
 
-- Frontend: http://localhost:8080
-- Backend: http://localhost:8082
-- Swagger UI: http://localhost:8082/swagger-ui.html
+To run the API against your own PostgreSQL instead of SQLite, set `SPRING_PROFILES_ACTIVE=postgres` and `APP_DB_URL` / `APP_DB_USERNAME` / `APP_DB_PASSWORD`.
 
-To stop the stack:
+## Database migrations
+
+Liquibase runs on startup. `db/changelog/db.changelog-master.yaml` only lists includes; the changeSets live in numbered files under `db/changelog/changes/`. Each file sets `logicalFilePath: db/changelog/db.changelog-master.yaml` so changeSet identity matches databases created before the split. Do not remove that line or rename changeSet ids. Add new changeSets in a new numbered file and include it in the master.
+
+The append-only audit triggers are database specific: changeSet 018 is SQLite only and 019 is PostgreSQL only.
+
+SQLite stores timestamps as text (`yyyy-MM-dd HH:mm:ss`, set through the JDBC URL), so sub-second precision is lost there. PostgreSQL uses native `TIMESTAMP`.
+
+## Concurrency
+
+Reversal loads the dispute with `SELECT ... FOR UPDATE` (`DisputeRepository.findByIdForUpdate`), then re-checks status, idempotency key and ledger before posting the credit. Optimistic `@Version` columns and unique constraints are a second line of defence, and lock or version conflicts return 409. SQLite ignores `FOR UPDATE`, so the row-lock guarantee only holds on PostgreSQL; `ConcurrentReversalPostgresTest` exercises it there.
+
+## Configuration
+
+| Variable | Purpose |
+|----------|---------|
+| `JWT_SECRET` | Required, at least 32 characters. The app will not start without it. |
+| `APP_SECURITY_DEMO_USERS_ENABLED` | `true` registers the admin, lead and customer demo users. Default `false`. |
+| `APP_SECURITY_USERNAME` / `APP_SECURITY_PASSWORD` | Built-in agent account. |
+| `APP_DB_PATH` | SQLite file location (default profile). |
+| `SPRING_PROFILES_ACTIVE=postgres` | Use PostgreSQL. |
+| `APP_DB_URL` / `APP_DB_USERNAME` / `APP_DB_PASSWORD` | PostgreSQL connection (postgres profile). |
+| `POSTGRES_PASSWORD` | Database password for the compose stack (demo default if unset). |
+
+## API
+
+Base path `/api/v1`. Log in with `POST /auth/login` and send `Authorization: Bearer <token>`.
+
+- `GET /accounts`, `POST /accounts` (admin)
+- `GET /transactions`
+- `GET /disputes`, `GET /disputes/{id}`, `GET /disputes/{id}/history`
+- `POST /disputes` (needs `X-Idempotency-Key`)
+- `POST /disputes/{id}/review`, `POST /disputes/{id}/approve`
+- `POST /disputes/{id}/reverse` (needs `X-Idempotency-Key`)
+
+Replaying the same key and payload returns the original result. The same key with a different payload returns 400. Reversing an already-resolved dispute returns 409.
+
+## Test
 
 ```bash
-docker compose down
+mvn verify                                  # backend tests plus JaCoCo gate (80% line / 60% branch)
+cd frontend && npm test -- --no-watch       # frontend unit tests (Vitest)
 ```
 
-## Local users
+`ConcurrentReversalPostgresTest` starts PostgreSQL through Testcontainers and is skipped automatically when Docker is not available. `src/test/resources/docker-java.properties` pins the Docker API version so Testcontainers works with current Docker Desktop.
 
-The app includes seeded users for local testing:
+## Production notes
 
-- agent-user / agent-pass123
-- admin-user / admin-pass123
-- lead-user / lead-pass123
-- customer-user / customer-pass123
-
-### Workflow notes
-
-- Customer users can submit disputes for their own account.
-- Lead users and admin users are permitted to review and approve disputes in the review stage.
-- A plain agent user is blocked from approving unless the business policy specifically treats them as a lead-level approver.
-
-## API endpoints
-
-Base URL:
-
-```text
-http://localhost:8083/api/v1
-```
-
-Key endpoints:
-
-- POST /auth/login
-- GET /profile
-- GET /accounts
-- GET /transactions
-- GET /disputes
-- GET /disputes/{id}
-- POST /disputes
-- POST /disputes/{id}/review
-- POST /disputes/{id}/approve
-- POST /disputes/{id}/reverse
-- GET /actuator/health
-
-### Idempotency
-
-Create and reverse dispute actions support an `X-Idempotency-Key` header to protect against accidental duplicate financial requests.
-
-## Database
-
-The local SQLite database is created at the project root:
-
-```text
-transaction-dispute.db
-```
-
-Inspect it with SQLite or Python when needed:
-
-```bash
-sqlite3 transaction-dispute.db "SELECT * FROM accounts;"
-sqlite3 transaction-dispute.db "SELECT * FROM transactions;"
-sqlite3 transaction-dispute.db "SELECT * FROM disputes;"
-```
-
-Schema and seed management are handled with Liquibase under:
-
-```text
-src/main/resources/db/changelog/
-```
-
-## Clean reset
-
-If the database becomes stale or the schema needs to be rebuilt:
-
-```bash
-rm transaction-dispute.db
-mvn spring-boot:run
-```
-
-On PowerShell:
-
-```powershell
-Remove-Item transaction-dispute.db -Force
-mvn spring-boot:run
-```
-
-## Notes
-
-The project has been validated against the dispute service regression suite, including the lead-user approval path for disputes already in review. This is the expected operational flow for a lead or admin to approve a disputed item before reversal processing.
-
-```
-
-On Windows PowerShell:
-
-```powershell
-Remove-Item transaction-dispute.db -Force
-mvn spring-boot:run
-```
-
-This forces Liquibase to rebuild the schema from the changelog files.
-
-## Important rules and expectations
-
-- Every dispute reversal creates a concrete ledger credit transaction.
-- Account balances are recalculated from actual transaction records.
-- Dispute states are validated before transition.
-- Only the current customer account is accessible for a signed-in user.
-- The app is meant for local/demo validation and is not a complete production banking implementation.
-
-## Notes
-
-- The backend must be running before the frontend can load data.
-- Port conflicts can be resolved by stopping the old Java or Node process before restarting the application.
-- The app was validated from a clean DB state with the backend health endpoint reporting `UP` and login succeeding for the seeded demo user.
+The stack is runnable on PostgreSQL, but it is still a demo-grade setup. For production: replace the local users with an OIDC identity provider, move secrets to a secret manager, use database-level pagination, and add an outbox for notifications.
