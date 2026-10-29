@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   liquibase:
     drop-first: false
 
@@ -6,5 +6,4 @@ app:
   security:
     username: agent-user
     password: agent-pass123
-  account-mappings: agent-user=ACC-1001,customer-user=ACC-1001
-
+  account-mappings: admin-user=ACC-1001,agent-user=ACC-1001,lead-user=ACC-1001,customer-user=ACC-1001

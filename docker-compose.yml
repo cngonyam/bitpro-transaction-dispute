@@ -1,4 +1,4 @@
-services:
+﻿services:
   backend:
     build:
       context: .
@@ -8,7 +8,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:sqlite:/data/transaction-dispute.db
       APP_SECURITY_USERNAME: agent-user
       APP_SECURITY_PASSWORD: agent-pass123
-      APP_ACCOUNT_MAPPINGS: admin-user=ACC-1001,agent-user=ACC-1001,customer-user=ACC-1001
+      APP_ACCOUNT_MAPPINGS: admin-user=ACC-1001,agent-user=ACC-1001,lead-user=ACC-1001,customer-user=ACC-1001
     volumes:
       - sqlite-data:/data
     healthcheck:
@@ -33,3 +33,4 @@ services:
 
 volumes:
   sqlite-data:
+

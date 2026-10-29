@@ -34,6 +34,14 @@
           <strong>admin-user / admin-pass123 · agent-user / agent-pass123 · lead-user / lead-pass123 · customer-user / customer-pass123</strong>
         </div>
 
+        <div class="demo-user-picker" aria-label="Demo users">
+          @for (user of demoUsers; track user.username) {
+            <button type="button" class="secondary-button" (click)="selectDemoUser(user)">
+              {{ user.label }}
+            </button>
+          }
+        </div>
+
         <button type="submit" class="primary-button" [disabled]="isLoggingIn">
           {{ isLoggingIn ? 'Signing in...' : 'Sign in' }}
         </button>
